@@ -351,11 +351,17 @@ private fun SyncPill(
     // (e.g. "Synced" still paired with the spinning blue sync icon) before the icon caught up.
     // Treating icon+label as one atomic snapshot inside a single AnimatedContent means they always
     // appear and disappear together as a single entity.
+    // `syncing` must be checked before `rebootDetected` - an active sync attempt is a live,
+    // real-time state and should always visually override the stale "reboot happened, date
+    // unknown" flag from before the tap. Otherwise, tapping sync right after a reboot would show
+    // the amber "Sync Status: Unknown" state for the whole attempt (since rebootDetected doesn't
+    // clear until a sync actually succeeds) instead of the blue "Syncing..." spinner, making a
+    // real, in-progress attempt look like it never started before jumping straight to "Failed".
     val visualState = when {
         justSynced -> SyncVisualState(Icons.Filled.Check, AccentEmerald, rotating = false, label = "Synced")
         syncFailed -> SyncVisualState(Icons.Filled.WarningAmber, AccentRed, rotating = false, label = "Sync Failed")
-        rebootDetected -> SyncVisualState(Icons.Filled.WarningAmber, AccentAmber, rotating = false, label = "Sync Status: Unknown")
         syncing -> SyncVisualState(Icons.Filled.Sync, AccentBlue, rotating = true, label = "Syncing...")
+        rebootDetected -> SyncVisualState(Icons.Filled.WarningAmber, AccentAmber, rotating = false, label = "Sync Status: Unknown")
         lastSyncedLabel == null -> SyncVisualState(Icons.Filled.Sync, AccentBlue, rotating = false, label = "Tap to Sync Date")
         else -> SyncVisualState(Icons.Filled.Sync, AccentBlue, rotating = false, label = "Last synced: $lastSyncedLabel")
     }
