@@ -24,6 +24,11 @@ class ChecklistViewModel(
         .map { it?.locked ?: false }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
+    /** Free-form note for this day. Editable independently of lock status. */
+    val note: StateFlow<String?> = repository.observeByDate(date)
+        .map { it?.note }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
     fun toggle(taskId: String) {
         if (locked.value) return
         val updated = checked.value.toMutableMap()
@@ -38,6 +43,13 @@ class ChecklistViewModel(
         if (locked.value) return
         viewModelScope.launch {
             repository.lockDay(date)
+        }
+    }
+
+    /** Saves the day's note. Allowed regardless of lock status - locking only freezes tasks. */
+    fun saveNote(text: String) {
+        viewModelScope.launch {
+            repository.saveNote(date, text.ifBlank { null })
         }
     }
 
