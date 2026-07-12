@@ -338,31 +338,26 @@ private fun SyncPill(
         label = "syncAngle"
     )
 
-    val label = when {
-        syncing -> "Syncing..."
-        justSynced -> "Synced"
-        syncFailed -> "Sync Failed"
-        rebootDetected -> "Sync Status: Unknown"
-        lastSyncedLabel == null -> "Tap to Sync Date"
-        else -> "Last synced: $lastSyncedLabel"
-    }
     // Failed and reboot-detected are deliberately different colors even though both are
     // "attention" states - red means the sync you just attempted failed outright, amber means the
     // date is merely unverified since a restart. Keeping them visually distinct avoids reading one
     // as the other at a glance.
     //
-    // icon, tint, and "is this the spinning state" are bundled into one immutable value (rather
-    // than three separate vals read live from the enclosing scope) so that AnimatedContent's
-    // enter/exit content each close over their own frozen snapshot. Previously the Icon inside
-    // AnimatedContent read `tint` directly from the outer scope, which had already advanced to the
-    // *new* state's color the moment state changed - so the old icon would flash the new color for
-    // a frame before the crossfade even started swapping shapes.
+    // Icon, tint, rotation, and label are bundled into ONE immutable value and driven through a
+    // single AnimatedContent, rather than the icon and text crossfading independently. They used
+    // to be two separate AnimatedContent-esque updates reading the same outer state, which meant
+    // the icon's crossfade animation (a few hundred ms) and the text's instant swap were not the
+    // same transition - so for a split second you could see the new label next to the old icon
+    // (e.g. "Synced" still paired with the spinning blue sync icon) before the icon caught up.
+    // Treating icon+label as one atomic snapshot inside a single AnimatedContent means they always
+    // appear and disappear together as a single entity.
     val visualState = when {
-        justSynced -> SyncVisualState(Icons.Filled.Check, AccentEmerald, rotating = false)
-        syncFailed -> SyncVisualState(Icons.Filled.WarningAmber, AccentRed, rotating = false)
-        rebootDetected -> SyncVisualState(Icons.Filled.WarningAmber, AccentAmber, rotating = false)
-        syncing -> SyncVisualState(Icons.Filled.Sync, AccentBlue, rotating = true)
-        else -> SyncVisualState(Icons.Filled.Sync, AccentBlue, rotating = false)
+        justSynced -> SyncVisualState(Icons.Filled.Check, AccentEmerald, rotating = false, label = "Synced")
+        syncFailed -> SyncVisualState(Icons.Filled.WarningAmber, AccentRed, rotating = false, label = "Sync Failed")
+        rebootDetected -> SyncVisualState(Icons.Filled.WarningAmber, AccentAmber, rotating = false, label = "Sync Status: Unknown")
+        syncing -> SyncVisualState(Icons.Filled.Sync, AccentBlue, rotating = true, label = "Syncing...")
+        lastSyncedLabel == null -> SyncVisualState(Icons.Filled.Sync, AccentBlue, rotating = false, label = "Tap to Sync Date")
+        else -> SyncVisualState(Icons.Filled.Sync, AccentBlue, rotating = false, label = "Last synced: $lastSyncedLabel")
     }
 
     Row(
@@ -373,31 +368,34 @@ private fun SyncPill(
             .padding(horizontal = 14.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        AnimatedContent(targetState = visualState, label = "syncIcon") { state ->
-            Icon(
-                imageVector = state.icon,
-                contentDescription = null,
-                tint = state.tint,
-                modifier = Modifier
-                    .size(15.dp)
-                    .rotate(if (state.rotating) angle else 0f)
-            )
+        AnimatedContent(targetState = visualState, label = "syncPillContent") { state ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = state.icon,
+                    contentDescription = null,
+                    tint = state.tint,
+                    modifier = Modifier
+                        .size(15.dp)
+                        .rotate(if (state.rotating) angle else 0f)
+                )
+                Text(
+                    text = state.label,
+                    color = ZincTextSecondary,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.padding(start = 8.dp)
+                )
+            }
         }
-        Text(
-            text = label,
-            color = ZincTextSecondary,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Medium,
-            modifier = Modifier.padding(start = 8.dp)
-        )
     }
 }
 
-/** Bundles a sync pill's icon, tint, and rotation flag as one atomic snapshot - see [SyncPill]. */
+/** Bundles a sync pill's icon, tint, rotation flag, and label as one atomic snapshot - see [SyncPill]. */
 private data class SyncVisualState(
     val icon: androidx.compose.ui.graphics.vector.ImageVector,
     val tint: Color,
-    val rotating: Boolean
+    val rotating: Boolean,
+    val label: String
 )
 
 @Composable

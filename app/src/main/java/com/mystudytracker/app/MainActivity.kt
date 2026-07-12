@@ -1,11 +1,24 @@
 package com.mystudytracker.app
 
+import android.content.res.Configuration
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -28,9 +41,45 @@ class MainActivity : ComponentActivity() {
         val repository = (application as MyStudyTrackerApplication).repository
         setContent {
             MyStudyTrackerTheme {
-                MyStudyTrackerNavHost(repository)
+                MyStudyTrackerRoot(repository)
             }
         }
+    }
+}
+
+/**
+ * The manifest locks this activity to portrait, but some devices override that (large-screen
+ * "ignore orientation request" compatibility settings, some foldables/manufacturer skins, or a
+ * user forcing rotation via accessibility/system tools) and hand the app a landscape
+ * configuration anyway. `configChanges` includes "orientation" so the activity survives that
+ * instead of recreating - we just detect it here and swap the entire UI for a blocking message
+ * rather than letting the real layout render sideways or squashed.
+ */
+@Composable
+private fun MyStudyTrackerRoot(repository: ProgressRepository) {
+    val configuration = LocalConfiguration.current
+    if (configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) {
+        LandscapeBlockedScreen()
+    } else {
+        MyStudyTrackerNavHost(repository)
+    }
+}
+
+@Composable
+private fun LandscapeBlockedScreen() {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = "This application does not support landscape mode. Please switch to portrait mode.",
+            color = Color.White,
+            fontSize = 21.sp,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(horizontal = 32.dp)
+        )
     }
 }
 
