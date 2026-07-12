@@ -2,8 +2,8 @@ package com.mystudytracker.app.ui.checklist
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -13,14 +13,12 @@ import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -44,7 +42,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -52,7 +49,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.input.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
@@ -72,8 +68,6 @@ import com.mystudytracker.app.ui.theme.ZincTextSecondary
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.launch
 
 private val DATE_LABEL_FORMAT: DateTimeFormatter =
     DateTimeFormatter.ofPattern("EEEE d MMMM yyyy", Locale.getDefault())
@@ -136,8 +130,8 @@ fun ChecklistScreen(
         }
 
         // Sticky, edge-to-edge bottom bar. Doubles as the permanent-lock control: once every task
-        // is checked its own label and background become the "hold to lock" affordance, so no new
-        // element is introduced into the layout - it is always the same bar, just adapting.
+        // is checked its own label becomes a one-tap "lock" affordance, so no new element is
+        // introduced into the layout - it is always the same bar, just adapting.
         LockableBottomBar(
             modifier = Modifier.align(Alignment.BottomCenter),
             completedCount = completedCount,
@@ -161,32 +155,31 @@ private fun LockableBottomBar(
     onLock: () -> Unit
 ) {
     val interactive = allComplete && !locked
-    val holdProgress = remember { Animatable(0f) }
-    val scope = rememberCoroutineScope()
     val haptic = LocalHapticFeedback.current
 
     val label = when {
         locked -> "Checklist Locked"
-        allComplete -> "Hold to Lock Checklist"
+        allComplete -> "Tap to Lock Checklist"
         else -> "$completedCount/$totalCount completed"
     }
 
     // Sticky, edge-to-edge bottom bar. It installs its own no-op clickable so it always consumes
     // its own touch events - taps here can never fall through to the checklist row underneath,
-    // unlike the old floating pill.
+    // unlike the old floating pill. Once every task is checked, that same clickable becomes the
+    // one-tap, permanent lock action - no new element, no confirmation dialog.
     val absorbTouches = remember { MutableInteractionSource() }
     Column(
         modifier = modifier
             .fillMaxWidth()
             .navigationBarsPadding()
             .background(ZincSurface)
-            .clickable(
-                interactionSource = absorbTouches,
-                indication = null,
-                enabled = !interactive
-            ) {
-                // Intentionally empty: this bar exists to be a solid, tappable surface that
-                // never passes touches through to whatever is rendered behind it.
+            .clickable(interactionSource = absorbTouches, indication = null) {
+                if (interactive) {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    onLock()
+                }
+                // Otherwise intentionally empty: the bar exists to be a solid, tappable surface
+                // that never passes touches through to whatever is rendered behind it.
             }
     ) {
         Box(
@@ -205,77 +198,31 @@ private fun LockableBottomBar(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(52.dp)
+                .height(52.dp),
+            contentAlignment = Alignment.Center
         ) {
-            // Fill sweep that tracks the hold gesture's progress toward the lock threshold -
-            // this is the only visual feedback needed, so no separate confirmation dialog
-            // interrupts the flow for what is otherwise a deliberate, hard-to-trigger-by-accident
-            // gesture.
-            if (interactive) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxHeight()
-                        .fillMaxWidth(fraction = holdProgress.value.coerceIn(0f, 1f))
-                        .background(AccentEmerald.copy(alpha = 0.28f))
-                )
-            }
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .then(
-                        if (interactive) {
-                            Modifier.pointerInput(Unit) {
-                                detectTapGestures(
-                                    onPress = {
-                                        val holdJob = scope.launch {
-                                            val completed = try {
-                                                holdProgress.animateTo(1f, tween(HOLD_DURATION_MS, easing = LinearEasing))
-                                                true
-                                            } catch (e: CancellationException) {
-                                                false
-                                            }
-                                            if (completed) {
-                                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                                onLock()
-                                            }
-                                        }
-                                        tryAwaitRelease()
-                                        holdJob.cancel()
-                                        if (holdProgress.value < 1f) {
-                                            scope.launch { holdProgress.animateTo(0f, tween(200)) }
-                                        }
-                                    }
-                                )
-                            }
-                        } else Modifier
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                AnimatedContent(targetState = label, label = "bottomBarLabel") { currentLabel ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (locked) {
-                            Icon(
-                                imageVector = Icons.Filled.Lock,
-                                contentDescription = null,
-                                tint = ZincTextMuted,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(Modifier.width(8.dp))
-                        }
-                        Text(
-                            text = currentLabel,
-                            color = if (locked) ZincTextMuted else ZincTextPrimary,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Medium
+            AnimatedContent(targetState = label, label = "bottomBarLabel") { currentLabel ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (locked) {
+                        Icon(
+                            imageVector = Icons.Filled.Lock,
+                            contentDescription = null,
+                            tint = ZincTextMuted,
+                            modifier = Modifier.size(16.dp)
                         )
+                        Spacer(Modifier.width(8.dp))
                     }
+                    Text(
+                        text = currentLabel,
+                        color = if (locked) ZincTextMuted else ZincTextPrimary,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium
+                    )
                 }
             }
         }
     }
 }
-
-private const val HOLD_DURATION_MS = 800
 
 @Composable
 private fun SectionCard(
@@ -353,7 +300,7 @@ private fun TaskRow(task: TaskItem, checked: Boolean, locked: Boolean, onToggle:
         animationSpec = tween(200),
         label = "strikeAlpha"
     )
-    val labelColor by androidx.compose.animation.animateColorAsState(
+    val labelColor by animateColorAsState(
         targetValue = if (checked) ZincTextMuted else ZincTextPrimary,
         animationSpec = tween(200),
         label = "labelColor"
@@ -376,7 +323,7 @@ private fun TaskRow(task: TaskItem, checked: Boolean, locked: Boolean, onToggle:
                 .border(2.dp, if (checked) AccentEmerald else ZincBorder, RoundedCornerShape(6.dp)),
             contentAlignment = Alignment.Center
         ) {
-            androidx.compose.animation.AnimatedVisibility(
+            AnimatedVisibility(
                 visible = checked,
                 enter = fadeIn(tween(120)) + scaleIn(tween(120), initialScale = 0.6f),
                 exit = fadeOut(tween(80)) + scaleOut(tween(80), targetScale = 0.6f)
