@@ -1,3 +1,4 @@
 # Add project specific ProGuard rules here.
-# This app ships with minifyEnabled false, so this file is currently unused,
-# but is kept in case minification is enabled later.
+# Release builds run with isMinifyEnabled/isShrinkResources = true (see app/build.gradle.kts),
+# using this file plus the default Android/R8 optimize rules. Room (KSP-generated, no reflection)
+# and Compose need no extra keep rules for this app; add any here if that ever changes.

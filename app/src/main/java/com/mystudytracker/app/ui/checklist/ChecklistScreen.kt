@@ -1,6 +1,7 @@
 package com.mystudytracker.app.ui.checklist
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
@@ -112,6 +113,11 @@ fun ChecklistScreen(
                 .fillMaxSize()
                 .statusBarsPadding()
                 .verticalScroll(rememberScrollState())
+                // Reserves space for the sticky bottom bar (3dp progress + 52dp content = 55dp)
+                // plus real breathing room, on top of the device's own navigation-bar inset - the
+                // bar itself is edge-to-edge with navigationBarsPadding(), so without also applying
+                // it here, 3-button-nav devices (~48dp inset) could clip the last section behind it.
+                .navigationBarsPadding()
                 .padding(bottom = 84.dp)
         ) {
             Row(
@@ -436,7 +442,7 @@ private fun TaskRow(task: TaskItem, checked: Boolean, locked: Boolean, onToggle:
                 .border(2.dp, if (checked) AccentEmerald else ZincBorder, RoundedCornerShape(6.dp)),
             contentAlignment = Alignment.Center
         ) {
-            androidx.compose.animation.AnimatedVisibility(
+            AnimatedVisibility(
                 visible = checked,
                 enter = fadeIn(tween(120)) + scaleIn(tween(120), initialScale = 0.6f),
                 exit = fadeOut(tween(80)) + scaleOut(tween(80), targetScale = 0.6f)

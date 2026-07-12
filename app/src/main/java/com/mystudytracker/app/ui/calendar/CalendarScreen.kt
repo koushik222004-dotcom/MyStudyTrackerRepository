@@ -411,6 +411,8 @@ private fun DayCell(
         DayStatus.GREEN -> Triple(AccentEmerald.copy(alpha = 0.9f), Color(0xFF022C22), null)
         DayStatus.YELLOW -> Triple(AccentAmber.copy(alpha = 0.9f), Color(0xFF451A03), null)
         DayStatus.RED -> Triple(AccentRed.copy(alpha = 0.85f), Color(0xFFFEF2F2), null)
+        // Unreachable in practice - the early return above already exits for OUTSIDE. Kept only
+        // because DayStatus is an enum and this `when` must stay exhaustive.
         DayStatus.OUTSIDE -> Triple(Color.Transparent, Color.Transparent, null)
     }
 

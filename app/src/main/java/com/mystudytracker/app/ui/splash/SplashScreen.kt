@@ -4,6 +4,7 @@ import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -64,7 +65,7 @@ fun SplashScreen(onFinished: () -> Unit) {
             .fillMaxSize()
             .background(AccentBlue)
             .alpha(animatedScreenAlpha),
-        verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
+        verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(

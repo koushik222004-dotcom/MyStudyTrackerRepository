@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -50,7 +51,7 @@ private fun MyStudyTrackerNavHost(repository: ProgressRepository) {
             )
         }
         composable("calendar") {
-            val context = androidx.compose.ui.platform.LocalContext.current
+            val context = LocalContext.current
             val viewModel: CalendarViewModel = viewModel(factory = CalendarViewModel.factory(repository, context.applicationContext))
             CalendarScreen(
                 viewModel = viewModel,

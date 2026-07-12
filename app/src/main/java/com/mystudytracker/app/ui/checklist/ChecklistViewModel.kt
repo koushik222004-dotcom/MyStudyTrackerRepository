@@ -3,6 +3,7 @@ package com.mystudytracker.app.ui.checklist
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.mystudytracker.app.data.DailyProgress
 import com.mystudytracker.app.data.ProgressRepository
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -15,17 +16,22 @@ class ChecklistViewModel(
     private val date: String
 ) : ViewModel() {
 
-    val checked: StateFlow<Map<String, Boolean>> = repository.observeByDate(date)
+    // Single shared observation of this date's row - checked/locked/note all derive from it below
+    // instead of each opening their own independent Room query for the exact same row.
+    private val day: StateFlow<DailyProgress?> = repository.observeByDate(date)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    val checked: StateFlow<Map<String, Boolean>> = day
         .map { it?.toTaskMap() ?: emptyMap() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
     /** Once true, this day is permanently finalized - there is no way back to false. */
-    val locked: StateFlow<Boolean> = repository.observeByDate(date)
+    val locked: StateFlow<Boolean> = day
         .map { it?.locked ?: false }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     /** Free-form note for this day. Editable independently of lock status. */
-    val note: StateFlow<String?> = repository.observeByDate(date)
+    val note: StateFlow<String?> = day
         .map { it?.note }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
