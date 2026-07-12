@@ -34,7 +34,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.StickyNote2
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.StickyNote2
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -129,12 +128,16 @@ fun ChecklistScreen(
                 // Mirrors the back button on the opposite side, balancing the header. Lives outside
                 // the dimmed/locked task area below, so a note can always be added or edited even
                 // once the day is locked - locking only freezes tasks, never the note.
+                // Stays on the thinner outlined glyph in both states - only the tint communicates
+                // "this day has a note" - so the button never gets visually heavier than the back
+                // arrow beside it just because a note was added.
                 val hasNote = !note.isNullOrBlank()
                 IconButton(onClick = { noteSheetOpen = true }) {
                     Icon(
-                        imageVector = if (hasNote) Icons.Filled.StickyNote2 else Icons.Outlined.StickyNote2,
+                        imageVector = Icons.Outlined.StickyNote2,
                         contentDescription = if (hasNote) "Edit note" else "Add note",
-                        tint = if (hasNote) AccentBlue else ZincTextPrimary
+                        tint = if (hasNote) AccentBlue else ZincTextPrimary,
+                        modifier = Modifier.size(20.dp)
                     )
                 }
             }

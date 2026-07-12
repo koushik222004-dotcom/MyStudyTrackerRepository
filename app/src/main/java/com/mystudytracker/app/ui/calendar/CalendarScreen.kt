@@ -36,6 +36,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -108,6 +109,25 @@ fun CalendarScreen(
     // Before the first-ever sync, there is no verified "today" - fall back to a date before the
     // tracked range so every day renders as locked/future rather than guessing from the wall clock.
     val today = trackedToday ?: DateRules.START_DATE.minusDays(1)
+
+    // After a successful manual sync, jump the visible month back to whatever month the verified
+    // "today" now falls in - but only if the user isn't already looking at it. Reuses the exact
+    // same cursorMonth state that the prev/next arrows drive, so AnimatedContent below plays the
+    // identical slide transition regardless of what changed the month.
+    LaunchedEffect(justSynced) {
+        if (justSynced && trackedToday != null) {
+            val syncedMonth = YearMonth.from(trackedToday).let {
+                when {
+                    it.isBefore(startMonth) -> startMonth
+                    it.isAfter(endMonth) -> endMonth
+                    else -> it
+                }
+            }
+            if (syncedMonth != month) {
+                cursorMonth = syncedMonth.toString()
+            }
+        }
+    }
 
     Column(
         modifier = Modifier
