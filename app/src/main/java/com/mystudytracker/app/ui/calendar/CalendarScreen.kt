@@ -24,6 +24,8 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -187,12 +189,18 @@ fun CalendarScreen(
             )
         }
 
-        // Calendar block is vertically centered in the remaining space between the
-        // title above and the legend below, so the screen doesn't feel top-heavy.
+        // Calendar block is vertically centered in the remaining space between the title above
+        // and the legend below, so the screen doesn't feel top-heavy. Also scrollable: in
+        // portrait this area's content is always shorter than its allotted space so scrolling
+        // never engages and centering looks identical to before, but in landscape the day grid
+        // (sized off the much wider available width) can be taller than the remaining vertical
+        // space - without this, it would overflow past this block and overlap the legend below
+        // instead of scaling down or scrolling.
         Column(
             modifier = Modifier
                 .weight(1f)
-                .fillMaxWidth(),
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.Center
         ) {
             // Month navigator
