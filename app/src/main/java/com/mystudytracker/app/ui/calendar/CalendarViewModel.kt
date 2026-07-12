@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class CalendarViewModel(
@@ -79,7 +80,7 @@ class CalendarViewModel(
             // the spinner always shows a real attempt before reporting success or failure.
             val elapsed = SystemClock.elapsedRealtime() - startedAt
             if (elapsed < MIN_SYNC_DISPLAY_MS) {
-                kotlinx.coroutines.delay(MIN_SYNC_DISPLAY_MS - elapsed)
+                delay(MIN_SYNC_DISPLAY_MS - elapsed)
             }
             // Clear the "syncing" flag as soon as the result is known, before showing the
             // follow-up success/failure indicator. Previously this stayed true through the whole
@@ -93,13 +94,13 @@ class CalendarViewModel(
                     _lastSyncedLabel.value = result.label
                     _rebootDetected.value = false
                     _justSynced.value = true
-                    kotlinx.coroutines.delay(1500)
+                    delay(1500)
                     _justSynced.value = false
                 }
                 DateIntegrityManager.SyncResult.Failure -> {
                     refreshFromClock()
                     _syncFailed.value = true
-                    kotlinx.coroutines.delay(2500)
+                    delay(2500)
                     _syncFailed.value = false
                 }
             }

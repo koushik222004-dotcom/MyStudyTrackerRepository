@@ -2,6 +2,7 @@ package com.mystudytracker.app.util
 
 import java.time.DayOfWeek
 import java.time.LocalDate
+import java.time.temporal.ChronoUnit
 
 /**
  * All date-based business rules for MyStudyTracker live here in one place:
@@ -18,18 +19,19 @@ object DateRules {
         !date.isBefore(START_DATE) && !date.isAfter(END_DATE)
 
     /**
-     * Number of Sundays from START_DATE up to and including [date] (0 if [date] is before START_DATE).
-     * Used to alternate the revision/practice scope every other Sunday.
+     * Number of Sundays from START_DATE up to and including [date] (0 if [date] is before
+     * START_DATE). Used to alternate the revision/practice scope every other Sunday.
+     *
+     * Computed in O(1) by finding the first Sunday on or after START_DATE, then counting
+     * complete 7-day intervals between it and [date].
      */
     fun sundayOrdinal(date: LocalDate): Int {
         if (date.isBefore(START_DATE)) return 0
-        var count = 0
-        var cursor = START_DATE
-        while (!cursor.isAfter(date)) {
-            if (cursor.dayOfWeek == DayOfWeek.SUNDAY) count++
-            cursor = cursor.plusDays(1)
-        }
-        return count
+        // DayOfWeek values: MONDAY=1 .. SUNDAY=7. Days until the next Sunday (0 if already Sunday).
+        val daysToFirstSunday = (DayOfWeek.SUNDAY.value - START_DATE.dayOfWeek.value + 7) % 7
+        val firstSunday = START_DATE.plusDays(daysToFirstSunday.toLong())
+        if (date.isBefore(firstSunday)) return 0
+        return (ChronoUnit.DAYS.between(firstSunday, date) / 7 + 1).toInt()
     }
 
     /** Scope text shown under "Pre-Lecture Revision" for the given date. */

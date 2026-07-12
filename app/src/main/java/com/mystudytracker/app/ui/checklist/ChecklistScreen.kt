@@ -59,8 +59,6 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
@@ -262,7 +260,6 @@ private fun LockableBottomBar(
     onLock: () -> Unit
 ) {
     val interactive = allComplete && !locked
-    val haptic = LocalHapticFeedback.current
 
     val label = when {
         locked -> "Checklist Locked"
@@ -278,11 +275,10 @@ private fun LockableBottomBar(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .navigationBarsPadding()
             .background(ZincSurface)
+            .navigationBarsPadding()
             .clickable(interactionSource = absorbTouches, indication = null) {
                 if (interactive) {
-                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                     onLock()
                 }
                 // Otherwise intentionally empty: the bar exists to be a solid, tappable surface

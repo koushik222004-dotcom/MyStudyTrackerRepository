@@ -40,7 +40,7 @@ class ChecklistViewModel(
         val updated = checked.value.toMutableMap()
         updated[taskId] = !(updated[taskId] ?: false)
         viewModelScope.launch {
-            repository.saveDay(date, updated)
+            repository.saveDay(date, updated, locked = locked.value, note = note.value)
         }
     }
 

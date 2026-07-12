@@ -9,12 +9,8 @@ class ProgressRepository(private val dao: DailyProgressDao) {
 
     fun observeByDate(date: String): Flow<DailyProgress?> = dao.observeByDate(date)
 
-    suspend fun saveDay(date: String, checked: Map<String, Boolean>) {
-        // Preserve any existing lock state and note - this path is only ever reached for task
-        // edits, and neither the lock status nor a saved note should be wiped out by a task save.
-        val existingLocked = dao.isLocked(date) ?: false
-        val existingNote = dao.getNote(date)
-        dao.upsert(DailyProgress.fromTaskMap(date, checked, locked = existingLocked, note = existingNote))
+    suspend fun saveDay(date: String, checked: Map<String, Boolean>, locked: Boolean, note: String?) {
+        dao.upsert(DailyProgress.fromTaskMap(date, checked, locked = locked, note = note))
     }
 
     /** Permanently finalizes a day. There is no corresponding "unlock" - this cannot be undone. */
