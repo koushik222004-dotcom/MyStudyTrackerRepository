@@ -34,9 +34,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Notes
+import androidx.compose.material.icons.filled.StickyNote2
 import androidx.compose.material.icons.outlined.Lock
-import androidx.compose.material.icons.outlined.Notes
+import androidx.compose.material.icons.outlined.StickyNote2
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -132,7 +132,7 @@ fun ChecklistScreen(
                 val hasNote = !note.isNullOrBlank()
                 IconButton(onClick = { noteSheetOpen = true }) {
                     Icon(
-                        imageVector = if (hasNote) Icons.Filled.Notes else Icons.Outlined.Notes,
+                        imageVector = if (hasNote) Icons.Filled.StickyNote2 else Icons.Outlined.StickyNote2,
                         contentDescription = if (hasNote) "Edit note" else "Add note",
                         tint = if (hasNote) AccentBlue else ZincTextPrimary
                     )

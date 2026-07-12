@@ -1,7 +1,7 @@
 package com.mystudytracker.app.data
 
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Bookmark
+import androidx.compose.material.icons.automirrored.outlined.Assignment
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.EditNote
 import androidx.compose.material.icons.outlined.FactCheck
@@ -74,7 +74,7 @@ object TaskCatalog {
         SectionDefinition(
             key = "assignments",
             title = "Assignments",
-            icon = Icons.Outlined.Bookmark,
+            icon = Icons.AutoMirrored.Outlined.Assignment,
             iconTint = Color(0xFF2DD4BF),
             tasks = listOf(TaskItem("physics", "Physics"), TaskItem("chemistry", "Chemistry"), TaskItem("biology", "Biology"))
         ),

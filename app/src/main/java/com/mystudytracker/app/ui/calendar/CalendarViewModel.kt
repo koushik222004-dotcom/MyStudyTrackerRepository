@@ -1,6 +1,7 @@
 package com.mystudytracker.app.ui.calendar
 
 import android.content.Context
+import android.os.SystemClock
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -70,7 +71,16 @@ class CalendarViewModel(
         viewModelScope.launch {
             _syncing.value = true
             _syncFailed.value = false
+            val startedAt = SystemClock.elapsedRealtime()
             val result = dateIntegrityManager.syncNow()
+            // With no network at all, DNS resolution fails almost instantly, so the request can
+            // come back in a handful of milliseconds - too fast to read as a genuine attempt, and
+            // indistinguishable from never having tried. Pad out to a minimum visible duration so
+            // the spinner always shows a real attempt before reporting success or failure.
+            val elapsed = SystemClock.elapsedRealtime() - startedAt
+            if (elapsed < MIN_SYNC_DISPLAY_MS) {
+                kotlinx.coroutines.delay(MIN_SYNC_DISPLAY_MS - elapsed)
+            }
             // Clear the "syncing" flag as soon as the result is known, before showing the
             // follow-up success/failure indicator. Previously this stayed true through the whole
             // follow-up delay below, so the "syncing" branch in the UI's label/icon logic took
@@ -97,6 +107,8 @@ class CalendarViewModel(
     }
 
     companion object {
+        private const val MIN_SYNC_DISPLAY_MS = 900L
+
         fun factory(repository: ProgressRepository, appContext: Context): ViewModelProvider.Factory =
             object : ViewModelProvider.Factory {
                 @Suppress("UNCHECKED_CAST")
