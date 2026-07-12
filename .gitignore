@@ -10,3 +10,4 @@
 local.properties
 *.apk
 *.aab
+!/app/keystore/*.p12

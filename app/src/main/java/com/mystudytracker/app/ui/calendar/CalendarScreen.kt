@@ -1,5 +1,13 @@
 package com.mystudytracker.app.ui.calendar
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -12,23 +20,20 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -40,12 +45,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.mystudytracker.app.data.TaskCatalog
 import com.mystudytracker.app.ui.theme.AccentAmber
 import com.mystudytracker.app.ui.theme.AccentBlue
 import com.mystudytracker.app.ui.theme.AccentEmerald
@@ -57,12 +62,18 @@ import com.mystudytracker.app.ui.theme.ZincSurfaceVariant
 import com.mystudytracker.app.ui.theme.ZincTextMuted
 import com.mystudytracker.app.ui.theme.ZincTextPrimary
 import com.mystudytracker.app.ui.theme.ZincTextSecondary
+import com.mystudytracker.app.util.AppText
 import com.mystudytracker.app.util.DateRules
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.TextStyle
 import java.util.Locale
 import kotlinx.coroutines.delay
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.rememberInfiniteTransition
 
 private val WEEKDAY_LABELS = listOf("S", "M", "T", "W", "T", "F", "S")
 
@@ -76,6 +87,7 @@ fun CalendarScreen(
     val lastSyncedLabel by viewModel.lastSyncedLabel.collectAsState()
     val bannerMessage by viewModel.bannerMessage.collectAsState()
     val syncing by viewModel.syncing.collectAsState()
+    val justSynced by viewModel.justSynced.collectAsState()
 
     // Only used to pick which month is shown first - the actual "today" used for highlighting and
     // unlocking days always comes from the uptime-anchored tracker above, never the wall clock.
@@ -112,42 +124,56 @@ fun CalendarScreen(
             .navigationBarsPadding()
             .padding(horizontal = 20.dp)
     ) {
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(20.dp))
 
-        // Top bar: always-visible manual "Sync Date" action + last-synced caption. The app never
-        // touches the network on its own - only this explicit tap does.
-        Row(
+        // Three-line masthead - the focal title of the screen, always first.
+        Column(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.End,
-            verticalAlignment = Alignment.CenterVertically
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Column(horizontalAlignment = Alignment.End) {
-                TextButton(onClick = { viewModel.syncDate() }, enabled = !syncing) {
-                    Icon(
-                        Icons.Filled.Sync,
-                        contentDescription = null,
-                        tint = if (syncing) ZincTextMuted else AccentBlue,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Text(
-                        text = if (syncing) "Syncing..." else "Sync Date",
-                        color = if (syncing) ZincTextMuted else AccentBlue,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium,
-                        modifier = Modifier.padding(start = 6.dp)
-                    )
-                }
-                Text(
-                    text = "Last synced: ${lastSyncedLabel ?: "never"}",
-                    color = ZincTextMuted,
-                    fontSize = 11.sp,
-                    modifier = Modifier.padding(end = 4.dp)
-                )
-            }
+            Text(
+                text = AppText.TITLE_LINE_1,
+                color = ZincTextMuted,
+                fontSize = 14.sp,
+                letterSpacing = 1.5.sp,
+                fontWeight = FontWeight.Medium,
+                textAlign = TextAlign.Center
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                text = AppText.TITLE_LINE_2,
+                color = AccentBlue,
+                fontSize = 21.sp,
+                letterSpacing = 0.4.sp,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                text = AppText.TITLE_LINE_3,
+                color = ZincTextMuted,
+                fontSize = 14.sp,
+                letterSpacing = 1.5.sp,
+                fontWeight = FontWeight.Medium,
+                textAlign = TextAlign.Center
+            )
+        }
+
+        Spacer(Modifier.height(14.dp))
+
+        // Sync status/action as a single centered pill - one cohesive tappable element instead of
+        // a stray button floating in a corner.
+        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            SyncPill(
+                syncing = syncing,
+                justSynced = justSynced,
+                lastSyncedLabel = lastSyncedLabel,
+                onClick = { viewModel.syncDate() }
+            )
         }
 
         if (bannerMessage != null) {
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(10.dp))
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -165,42 +191,6 @@ fun CalendarScreen(
             }
         }
 
-        Spacer(Modifier.height(12.dp))
-
-        // Three-line masthead: line 2 ("FINAL ATTEMPT: NEET 2027") is the bold focal point, lines
-        // 1 and 3 are smaller/muted but still comfortably readable - never squint-small.
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = "KOUSHIK'S",
-                color = ZincTextMuted,
-                fontSize = 14.sp,
-                letterSpacing = 1.5.sp,
-                fontWeight = FontWeight.Medium,
-                textAlign = TextAlign.Center
-            )
-            Spacer(Modifier.height(2.dp))
-            Text(
-                text = "FINAL ATTEMPT: NEET 2027",
-                color = AccentBlue,
-                fontSize = 21.sp,
-                letterSpacing = 0.4.sp,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center
-            )
-            Spacer(Modifier.height(2.dp))
-            Text(
-                text = "STUDY TRACKER",
-                color = ZincTextMuted,
-                fontSize = 14.sp,
-                letterSpacing = 1.5.sp,
-                fontWeight = FontWeight.Medium,
-                textAlign = TextAlign.Center
-            )
-        }
-
         // Calendar block is vertically centered in the remaining space between the
         // title above and the legend below, so the screen doesn't feel top-heavy.
         Column(
@@ -211,19 +201,20 @@ fun CalendarScreen(
         ) {
             // Month navigator
             val canGoNext = month.isBefore(endMonth)
+            val canGoPrev = month.isAfter(startMonth)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(
-                    onClick = { if (month.isAfter(startMonth)) cursorMonth = month.minusMonths(1).toString() },
-                    enabled = month.isAfter(startMonth)
+                    onClick = { if (canGoPrev) cursorMonth = month.minusMonths(1).toString() },
+                    enabled = canGoPrev
                 ) {
                     Icon(
                         Icons.Filled.ChevronLeft,
                         contentDescription = "Previous month",
-                        tint = if (month.isAfter(startMonth)) ZincTextPrimary else ZincBorder
+                        tint = if (canGoPrev) ZincTextPrimary else ZincBorder
                     )
                 }
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -259,28 +250,113 @@ fun CalendarScreen(
 
             Spacer(Modifier.height(8.dp))
 
-            val weeks = remember(month) { buildWeeks(month) }
-            weeks.forEach { week ->
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    week.forEach { date ->
-                        Box(modifier = Modifier.weight(1f).aspectRatio(1f)) {
-                            if (date != null) {
-                                DayCell(
-                                    date = date,
-                                    today = today,
-                                    completedCount = completedCounts[date.toString()],
-                                    onClick = { onDateSelected(date) }
-                                )
-                            }
-                        }
+            AnimatedContent(
+                targetState = month,
+                transitionSpec = {
+                    if (targetState > initialState) {
+                        (slideInHorizontally(tween(200)) { width -> width } + fadeIn(tween(200))) togetherWith
+                            (slideOutHorizontally(tween(200)) { width -> -width } + fadeOut(tween(200)))
+                    } else {
+                        (slideInHorizontally(tween(200)) { width -> -width } + fadeIn(tween(200))) togetherWith
+                            (slideOutHorizontally(tween(200)) { width -> width } + fadeOut(tween(200)))
                     }
-                }
-                Spacer(Modifier.height(8.dp))
+                },
+                label = "monthGrid"
+            ) { targetMonth ->
+                CalendarGrid(
+                    month = targetMonth,
+                    today = today,
+                    completedCounts = completedCounts,
+                    onDateSelected = onDateSelected
+                )
             }
         }
 
         LegendCard()
         Spacer(Modifier.height(20.dp))
+    }
+}
+
+/**
+ * Isolated in its own composable so recomposing unrelated screen state (sync pill, banner) never
+ * forces the whole month grid to re-lay-out - only [month], [today], or [completedCounts]
+ * actually changing triggers work here.
+ */
+@Composable
+private fun CalendarGrid(
+    month: YearMonth,
+    today: LocalDate,
+    completedCounts: Map<String, Int>,
+    onDateSelected: (LocalDate) -> Unit
+) {
+    val weeks = remember(month) { buildWeeks(month) }
+    Column {
+        weeks.forEach { week ->
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                week.forEach { date ->
+                    Box(modifier = Modifier.weight(1f).aspectRatio(1f)) {
+                        if (date != null) {
+                            DayCell(
+                                date = date,
+                                today = today,
+                                completedCount = completedCounts[date.toString()],
+                                onClick = { onDateSelected(date) }
+                            )
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+        }
+    }
+}
+
+@Composable
+private fun SyncPill(
+    syncing: Boolean,
+    justSynced: Boolean,
+    lastSyncedLabel: String?,
+    onClick: () -> Unit
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "syncRotation")
+    val angle by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(tween(800, easing = LinearEasing), repeatMode = RepeatMode.Restart),
+        label = "syncAngle"
+    )
+
+    val label = when {
+        syncing -> "Syncing..."
+        else -> "Last synced: ${lastSyncedLabel ?: "never"}"
+    }
+    val tint = if (justSynced) AccentEmerald else AccentBlue
+
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(ZincSurfaceVariant)
+            .clickable(enabled = !syncing) { onClick() }
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        AnimatedContent(targetState = justSynced, label = "syncIcon") { showCheck ->
+            Icon(
+                imageVector = if (showCheck) Icons.Filled.Check else Icons.Filled.Sync,
+                contentDescription = null,
+                tint = tint,
+                modifier = Modifier
+                    .size(15.dp)
+                    .rotate(if (syncing && !showCheck) angle else 0f)
+            )
+        }
+        Text(
+            text = label,
+            color = ZincTextSecondary,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.padding(start = 8.dp)
+        )
     }
 }
 
@@ -294,7 +370,9 @@ private fun DayCell(
     val status = computeDayStatus(date, today, completedCount)
     val clickable = isDayClickable(status)
 
-    val (background, contentColor, borderColor) = when (status) {
+    if (status == DayStatus.OUTSIDE) return
+
+    val (targetBackground, contentColor, borderColor) = when (status) {
         DayStatus.FUTURE -> Triple(Color.Transparent, ZincTextPrimary, ZincBorder)
         DayStatus.TODAY_INCOMPLETE -> Triple(AccentBlue, Color.White, null)
         DayStatus.TODAY_COMPLETE -> Triple(AccentEmerald, Color.White, null)
@@ -304,7 +382,9 @@ private fun DayCell(
         DayStatus.OUTSIDE -> Triple(Color.Transparent, Color.Transparent, null)
     }
 
-    if (status == DayStatus.OUTSIDE) return
+    // Cross-fades between colors when a day's status actually changes (e.g. finishing the last
+    // task) - has no effect on first mount, so swiping to a new month never triggers a fade here.
+    val background by animateColorAsState(targetValue = targetBackground, animationSpec = tween(200), label = "dayColor")
 
     Box(
         modifier = Modifier

@@ -39,6 +39,11 @@ class CalendarViewModel(
     private val _syncing = MutableStateFlow(false)
     val syncing: StateFlow<Boolean> = _syncing.asStateFlow()
 
+    // Briefly true right after a successful sync, so the sync pill can flash a checkmark before
+    // reverting to its normal icon.
+    private val _justSynced = MutableStateFlow(false)
+    val justSynced: StateFlow<Boolean> = _justSynced.asStateFlow()
+
     init {
         refreshFromClock()
     }
@@ -66,6 +71,9 @@ class CalendarViewModel(
                     _today.value = result.date
                     _lastSyncedLabel.value = result.label
                     _bannerMessage.value = "Date synced \u2713 (${result.label})"
+                    _justSynced.value = true
+                    kotlinx.coroutines.delay(1200)
+                    _justSynced.value = false
                 }
                 DateIntegrityManager.SyncResult.Failure -> {
                     refreshFromClock()

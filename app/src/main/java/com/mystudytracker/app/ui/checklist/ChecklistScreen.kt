@@ -1,5 +1,13 @@
 package com.mystudytracker.app.ui.checklist
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -27,12 +35,15 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
@@ -66,6 +77,11 @@ fun ChecklistScreen(
     val completedCount = checked.values.count { it }
     val totalCount = TaskCatalog.totalTaskCount
     val progressFraction = if (totalCount > 0) completedCount.toFloat() / totalCount else 0f
+    val animatedProgressFraction by animateFloatAsState(
+        targetValue = progressFraction.coerceIn(0f, 1f),
+        animationSpec = tween(250),
+        label = "checklistProgress"
+    )
 
     Box(modifier = Modifier.fillMaxSize().background(ZincBackground)) {
         Column(
@@ -123,7 +139,7 @@ fun ChecklistScreen(
             ) {
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth(fraction = progressFraction.coerceIn(0f, 1f))
+                        .fillMaxWidth(fraction = animatedProgressFraction)
                         .height(3.dp)
                         .background(AccentEmerald)
                 )
@@ -201,6 +217,30 @@ private fun SectionCard(
 
 @Composable
 private fun TaskRow(task: TaskItem, checked: Boolean, onToggle: () -> Unit) {
+    // Independent, self-contained animation state for this one row's checkbox bounce - each row
+    // animates on its own and never competes with the progress bar / strikethrough animations
+    // that fire from the same tap.
+    val checkboxScale = remember { Animatable(1f) }
+    LaunchedEffect(checked) {
+        if (checked) {
+            checkboxScale.animateTo(1.18f, tween(90))
+            checkboxScale.animateTo(1f, tween(90))
+        }
+    }
+
+    // Fade between a plain label and a struck-through copy stacked in the same place, so the
+    // strikethrough appears to fade in/out instead of snapping on.
+    val strikeAlpha by animateFloatAsState(
+        targetValue = if (checked) 1f else 0f,
+        animationSpec = tween(200),
+        label = "strikeAlpha"
+    )
+    val labelColor by androidx.compose.animation.core.animateColorAsState(
+        targetValue = if (checked) ZincTextMuted else ZincTextPrimary,
+        animationSpec = tween(200),
+        label = "labelColor"
+    )
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -212,12 +252,17 @@ private fun TaskRow(task: TaskItem, checked: Boolean, onToggle: () -> Unit) {
         Box(
             modifier = Modifier
                 .size(20.dp)
+                .scale(checkboxScale.value)
                 .clip(RoundedCornerShape(6.dp))
                 .background(if (checked) AccentEmerald else Color.Transparent)
                 .border(2.dp, if (checked) AccentEmerald else ZincBorder, RoundedCornerShape(6.dp)),
             contentAlignment = Alignment.Center
         ) {
-            if (checked) {
+            AnimatedVisibility(
+                visible = checked,
+                enter = fadeIn(tween(120)) + scaleIn(tween(120), initialScale = 0.6f),
+                exit = fadeOut(tween(80)) + scaleOut(tween(80), targetScale = 0.6f)
+            ) {
                 Icon(
                     imageVector = Icons.Filled.Check,
                     contentDescription = null,
@@ -227,11 +272,15 @@ private fun TaskRow(task: TaskItem, checked: Boolean, onToggle: () -> Unit) {
             }
         }
         Spacer(Modifier.width(12.dp))
-        Text(
-            text = task.label,
-            color = if (checked) ZincTextMuted else ZincTextPrimary,
-            fontSize = 15.sp,
-            textDecoration = if (checked) TextDecoration.LineThrough else TextDecoration.None
-        )
+        Box {
+            Text(text = task.label, color = labelColor, fontSize = 15.sp, modifier = Modifier.alpha(1f - strikeAlpha))
+            Text(
+                text = task.label,
+                color = labelColor,
+                fontSize = 15.sp,
+                textDecoration = TextDecoration.LineThrough,
+                modifier = Modifier.alpha(strikeAlpha)
+            )
+        }
     }
 }

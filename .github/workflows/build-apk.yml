@@ -31,13 +31,13 @@ jobs:
         with:
           gradle-version: "8.7"
 
-      - name: Build debug APK
-        run: gradle assembleDebug --no-daemon
+      - name: Build release APK
+        run: gradle assembleRelease --no-daemon
         env:
           ANDROID_SDK_ROOT: ${{ env.ANDROID_HOME }}
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: MyStudyTracker-debug-apk
-          path: app/build/outputs/apk/debug/*.apk
+          name: MyStudyTracker-release-apk
+          path: app/build/outputs/apk/release/*.apk
