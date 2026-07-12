@@ -70,7 +70,7 @@ fun SplashScreen(onFinished: () -> Unit) {
         Text(
             text = AppText.TITLE_LINE_1,
             color = Color.White,
-            fontSize = 15.sp,
+            fontSize = 12.sp,
             letterSpacing = 1.5.sp,
             fontWeight = FontWeight.Medium,
             modifier = Modifier.alpha(animatedTextAlpha)
@@ -79,7 +79,7 @@ fun SplashScreen(onFinished: () -> Unit) {
         Text(
             text = AppText.TITLE_LINE_2,
             color = Color.White,
-            fontSize = 22.sp,
+            fontSize = 19.sp,
             letterSpacing = 0.4.sp,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.alpha(animatedTextAlpha)
@@ -88,7 +88,7 @@ fun SplashScreen(onFinished: () -> Unit) {
         Text(
             text = AppText.TITLE_LINE_3,
             color = Color.White,
-            fontSize = 15.sp,
+            fontSize = 12.sp,
             letterSpacing = 1.5.sp,
             fontWeight = FontWeight.Medium,
             modifier = Modifier.alpha(animatedTextAlpha)
