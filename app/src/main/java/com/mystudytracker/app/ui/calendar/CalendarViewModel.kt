@@ -33,8 +33,11 @@ class CalendarViewModel(
     private val _lastSyncedLabel = MutableStateFlow<String?>(null)
     val lastSyncedLabel: StateFlow<String?> = _lastSyncedLabel.asStateFlow()
 
-    private val _bannerMessage = MutableStateFlow<String?>(null)
-    val bannerMessage: StateFlow<String?> = _bannerMessage.asStateFlow()
+    // True when the device rebooted since the last confirmed date, so the tracked "today" can no
+    // longer be trusted until the user re-syncs. Surfaced as an attention state on the sync pill
+    // itself rather than a separate banner, so nothing else on screen shifts when it appears.
+    private val _rebootDetected = MutableStateFlow(false)
+    val rebootDetected: StateFlow<Boolean> = _rebootDetected.asStateFlow()
 
     private val _syncing = MutableStateFlow(false)
     val syncing: StateFlow<Boolean> = _syncing.asStateFlow()
@@ -43,6 +46,11 @@ class CalendarViewModel(
     // reverting to its normal icon.
     private val _justSynced = MutableStateFlow(false)
     val justSynced: StateFlow<Boolean> = _justSynced.asStateFlow()
+
+    // Briefly true right after a failed sync attempt, so the sync pill can flash an attention
+    // state before reverting to its normal label.
+    private val _syncFailed = MutableStateFlow(false)
+    val syncFailed: StateFlow<Boolean> = _syncFailed.asStateFlow()
 
     init {
         refreshFromClock()
@@ -53,12 +61,7 @@ class CalendarViewModel(
         val state = dateIntegrityManager.currentState()
         _today.value = state.today
         _lastSyncedLabel.value = state.lastSyncedLabel
-        when {
-            state.needsFirstSync ->
-                _bannerMessage.value = "Welcome! Tap \"Sync Date\" once to set up your tracker (needs internet this one time)."
-            state.rebootDetected ->
-                _bannerMessage.value = "Device restarted — tap Sync Date to confirm today."
-        }
+        _rebootDetected.value = state.rebootDetected
     }
 
     /** Explicit, user-triggered sync only. Never called automatically. */
@@ -66,26 +69,25 @@ class CalendarViewModel(
         if (_syncing.value) return
         viewModelScope.launch {
             _syncing.value = true
+            _syncFailed.value = false
             when (val result = dateIntegrityManager.syncNow()) {
                 is DateIntegrityManager.SyncResult.Success -> {
                     _today.value = result.date
                     _lastSyncedLabel.value = result.label
-                    _bannerMessage.value = "Date synced \u2713 (${result.label})"
+                    _rebootDetected.value = false
                     _justSynced.value = true
-                    kotlinx.coroutines.delay(1200)
+                    kotlinx.coroutines.delay(1500)
                     _justSynced.value = false
                 }
                 DateIntegrityManager.SyncResult.Failure -> {
                     refreshFromClock()
-                    _bannerMessage.value = "No internet — using last synced date"
+                    _syncFailed.value = true
+                    kotlinx.coroutines.delay(2500)
+                    _syncFailed.value = false
                 }
             }
             _syncing.value = false
         }
-    }
-
-    fun clearBanner() {
-        _bannerMessage.value = null
     }
 
     companion object {

@@ -31,6 +31,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -86,9 +87,10 @@ fun CalendarScreen(
     val completedCounts by viewModel.completedCountByDate.collectAsState()
     val trackedToday by viewModel.today.collectAsState()
     val lastSyncedLabel by viewModel.lastSyncedLabel.collectAsState()
-    val bannerMessage by viewModel.bannerMessage.collectAsState()
+    val rebootDetected by viewModel.rebootDetected.collectAsState()
     val syncing by viewModel.syncing.collectAsState()
     val justSynced by viewModel.justSynced.collectAsState()
+    val syncFailed by viewModel.syncFailed.collectAsState()
 
     // Only used to pick which month is shown first - the actual "today" used for highlighting and
     // unlocking days always comes from the uptime-anchored tracker above, never the wall clock.
@@ -109,13 +111,6 @@ fun CalendarScreen(
     // Before the first-ever sync, there is no verified "today" - fall back to a date before the
     // tracked range so every day renders as locked/future rather than guessing from the wall clock.
     val today = trackedToday ?: DateRules.START_DATE.minusDays(1)
-
-    if (bannerMessage != null) {
-        LaunchedEffect(bannerMessage) {
-            delay(4500)
-            viewModel.clearBanner()
-        }
-    }
 
     Column(
         modifier = Modifier
@@ -168,28 +163,11 @@ fun CalendarScreen(
             SyncPill(
                 syncing = syncing,
                 justSynced = justSynced,
+                syncFailed = syncFailed,
+                rebootDetected = rebootDetected,
                 lastSyncedLabel = lastSyncedLabel,
                 onClick = { viewModel.syncDate() }
             )
-        }
-
-        if (bannerMessage != null) {
-            Spacer(Modifier.height(10.dp))
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(ZincSurfaceVariant)
-                    .padding(horizontal = 14.dp, vertical = 10.dp)
-            ) {
-                Text(
-                    text = bannerMessage ?: "",
-                    color = ZincTextSecondary,
-                    fontSize = 12.sp,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
         }
 
         // Calendar block is vertically centered in the remaining space between the
@@ -312,10 +290,18 @@ private fun CalendarGrid(
     }
 }
 
+/**
+ * Single adaptive control that communicates every sync-related state through its own icon, tint,
+ * and label - never-synced, syncing, just-succeeded, failed, and reboot-detected all render here
+ * instead of a separate banner, so the pill's fixed size means nothing else on screen ever shifts
+ * position when its state changes.
+ */
 @Composable
 private fun SyncPill(
     syncing: Boolean,
     justSynced: Boolean,
+    syncFailed: Boolean,
+    rebootDetected: Boolean,
     lastSyncedLabel: String?,
     onClick: () -> Unit
 ) {
@@ -327,11 +313,26 @@ private fun SyncPill(
         label = "syncAngle"
     )
 
+    val needsAttention = !syncing && !justSynced && (syncFailed || rebootDetected)
+
     val label = when {
         syncing -> "Syncing..."
-        else -> "Last synced: ${lastSyncedLabel ?: "never"}"
+        justSynced -> "Synced Just Now"
+        syncFailed -> "Sync Failed"
+        rebootDetected -> "Sync Status: Unknown"
+        lastSyncedLabel == null -> "Tap to Sync Date"
+        else -> "Last synced: $lastSyncedLabel"
     }
-    val tint = if (justSynced) AccentEmerald else AccentBlue
+    val tint = when {
+        justSynced -> AccentEmerald
+        needsAttention -> AccentAmber
+        else -> AccentBlue
+    }
+    val icon = when {
+        justSynced -> Icons.Filled.Check
+        needsAttention -> Icons.Filled.WarningAmber
+        else -> Icons.Filled.Sync
+    }
 
     Row(
         modifier = Modifier
@@ -341,14 +342,14 @@ private fun SyncPill(
             .padding(horizontal = 14.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        AnimatedContent(targetState = justSynced, label = "syncIcon") { showCheck ->
+        AnimatedContent(targetState = icon, label = "syncIcon") { currentIcon ->
             Icon(
-                imageVector = if (showCheck) Icons.Filled.Check else Icons.Filled.Sync,
+                imageVector = currentIcon,
                 contentDescription = null,
                 tint = tint,
                 modifier = Modifier
                     .size(15.dp)
-                    .rotate(if (syncing && !showCheck) angle else 0f)
+                    .rotate(if (syncing && currentIcon == Icons.Filled.Sync) angle else 0f)
             )
         }
         Text(
@@ -460,7 +461,12 @@ private fun LegendCard() {
     }
 }
 
-/** Builds a 7-wide grid of weeks for [month], with null placeholders for leading/trailing empty cells. */
+/**
+ * Builds a 7-wide grid of weeks for [month], with null placeholders for leading/trailing empty
+ * cells. Always returns exactly [WEEKS_PER_GRID] rows (padding with an extra all-null week when a
+ * month only spans 5 calendar rows) so the grid's total height never changes between months - this
+ * keeps the month navigator and everything below it from shifting position when switching months.
+ */
 private fun buildWeeks(month: YearMonth): List<List<LocalDate?>> {
     val firstOfMonth = month.atDay(1)
     val daysInMonth = month.lengthOfMonth()
@@ -471,6 +477,9 @@ private fun buildWeeks(month: YearMonth): List<List<LocalDate?>> {
     repeat(startOffset) { cells.add(null) }
     for (day in 1..daysInMonth) cells.add(month.atDay(day))
     while (cells.size % 7 != 0) cells.add(null)
+    while (cells.size < WEEKS_PER_GRID * 7) cells.add(null)
 
     return cells.chunked(7)
 }
+
+private const val WEEKS_PER_GRID = 6
