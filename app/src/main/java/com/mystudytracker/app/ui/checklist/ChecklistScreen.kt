@@ -137,7 +137,7 @@ fun ChecklistScreen(
                         imageVector = Icons.Outlined.StickyNote2,
                         contentDescription = if (hasNote) "Edit note" else "Add note",
                         tint = if (hasNote) AccentBlue else ZincTextPrimary,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(22.dp)
                     )
                 }
             }
