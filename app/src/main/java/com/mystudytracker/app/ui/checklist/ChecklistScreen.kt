@@ -235,7 +235,7 @@ private fun TaskRow(task: TaskItem, checked: Boolean, onToggle: () -> Unit) {
         animationSpec = tween(200),
         label = "strikeAlpha"
     )
-    val labelColor by androidx.compose.animation.core.animateColorAsState(
+    val labelColor by androidx.compose.animation.animateColorAsState(
         targetValue = if (checked) ZincTextMuted else ZincTextPrimary,
         animationSpec = tween(200),
         label = "labelColor"
@@ -258,7 +258,7 @@ private fun TaskRow(task: TaskItem, checked: Boolean, onToggle: () -> Unit) {
                 .border(2.dp, if (checked) AccentEmerald else ZincBorder, RoundedCornerShape(6.dp)),
             contentAlignment = Alignment.Center
         ) {
-            AnimatedVisibility(
+            androidx.compose.animation.AnimatedVisibility(
                 visible = checked,
                 enter = fadeIn(tween(120)) + scaleIn(tween(120), initialScale = 0.6f),
                 exit = fadeOut(tween(80)) + scaleOut(tween(80), targetScale = 0.6f)
