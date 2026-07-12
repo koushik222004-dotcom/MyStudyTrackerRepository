@@ -310,8 +310,6 @@ private fun SyncPill(
         label = "syncAngle"
     )
 
-    val needsAttention = !syncing && !justSynced && (syncFailed || rebootDetected)
-
     val label = when {
         syncing -> "Syncing..."
         justSynced -> "Synced Just Now"
@@ -320,14 +318,20 @@ private fun SyncPill(
         lastSyncedLabel == null -> "Tap to Sync Date"
         else -> "Last synced: $lastSyncedLabel"
     }
+    // Failed and reboot-detected are deliberately different colors even though both are
+    // "attention" states - red means the sync you just attempted failed outright, amber means the
+    // date is merely unverified since a restart. Keeping them visually distinct avoids reading one
+    // as the other at a glance.
     val tint = when {
         justSynced -> AccentEmerald
-        needsAttention -> AccentAmber
+        syncFailed -> AccentRed
+        rebootDetected -> AccentAmber
         else -> AccentBlue
     }
     val icon = when {
         justSynced -> Icons.Filled.Check
-        needsAttention -> Icons.Filled.WarningAmber
+        syncFailed -> Icons.Filled.WarningAmber
+        rebootDetected -> Icons.Filled.WarningAmber
         else -> Icons.Filled.Sync
     }
 

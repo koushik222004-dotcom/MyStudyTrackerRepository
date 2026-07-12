@@ -50,7 +50,10 @@ data class DailyProgress(
     val completedCount: Int = 0,
 
     /** Once true, the day is permanently finalized: tasks can never be toggled again. */
-    val locked: Boolean = false
+    val locked: Boolean = false,
+
+    /** Free-form note for the day, edited independently of task state and lock status. */
+    val note: String? = null
 ) {
     /** Converts the 25 fixed columns into a generic "section.task" -> checked map used by the UI layer. */
     fun toTaskMap(): Map<String, Boolean> = mapOf(
@@ -83,7 +86,7 @@ data class DailyProgress(
 
     companion object {
         /** Builds a row from a generic "section.task" -> checked map (missing keys default to false). */
-        fun fromTaskMap(date: String, checked: Map<String, Boolean>, locked: Boolean = false): DailyProgress {
+        fun fromTaskMap(date: String, checked: Map<String, Boolean>, locked: Boolean = false, note: String? = null): DailyProgress {
             fun v(id: String) = checked[id] ?: false
             return DailyProgress(
                 date = date,
@@ -113,7 +116,8 @@ data class DailyProgress(
                 testsTest = v("tests.test"),
                 testsAnalysis = v("tests.analysis"),
                 completedCount = checked.values.count { it },
-                locked = locked
+                locked = locked,
+                note = note
             )
         }
     }

@@ -70,7 +70,14 @@ class CalendarViewModel(
         viewModelScope.launch {
             _syncing.value = true
             _syncFailed.value = false
-            when (val result = dateIntegrityManager.syncNow()) {
+            val result = dateIntegrityManager.syncNow()
+            // Clear the "syncing" flag as soon as the result is known, before showing the
+            // follow-up success/failure indicator. Previously this stayed true through the whole
+            // follow-up delay below, so the "syncing" branch in the UI's label/icon logic took
+            // priority the entire time and completely masked both the success checkmark and the
+            // failure warning - a failed sync looked identical to a successful one.
+            _syncing.value = false
+            when (result) {
                 is DateIntegrityManager.SyncResult.Success -> {
                     _today.value = result.date
                     _lastSyncedLabel.value = result.label
@@ -86,7 +93,6 @@ class CalendarViewModel(
                     _syncFailed.value = false
                 }
             }
-            _syncing.value = false
         }
     }
 

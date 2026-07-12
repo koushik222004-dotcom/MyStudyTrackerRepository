@@ -20,6 +20,13 @@ interface DailyProgressDao {
     @Query("UPDATE daily_progress SET locked = 1 WHERE date = :date")
     suspend fun setLocked(date: String)
 
+    @Query("SELECT note FROM daily_progress WHERE date = :date LIMIT 1")
+    suspend fun getNote(date: String): String?
+
+    /** Returns the number of rows updated - 0 means no row exists yet for [date]. */
+    @Query("UPDATE daily_progress SET note = :note WHERE date = :date")
+    suspend fun updateNote(date: String, note: String?): Int
+
     @Upsert
     suspend fun upsert(progress: DailyProgress)
 }
