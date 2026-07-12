@@ -38,7 +38,8 @@ private fun MyStudyTrackerNavHost(repository: ProgressRepository) {
 
     NavHost(navController = navController, startDestination = "calendar") {
         composable("calendar") {
-            val viewModel: CalendarViewModel = viewModel(factory = CalendarViewModel.factory(repository))
+            val context = androidx.compose.ui.platform.LocalContext.current
+            val viewModel: CalendarViewModel = viewModel(factory = CalendarViewModel.factory(repository, context.applicationContext))
             CalendarScreen(
                 viewModel = viewModel,
                 onDateSelected = { date -> navController.navigate("checklist/$date") }

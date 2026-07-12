@@ -23,11 +23,14 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -50,6 +53,7 @@ import com.mystudytracker.app.ui.theme.AccentRed
 import com.mystudytracker.app.ui.theme.ZincBackground
 import com.mystudytracker.app.ui.theme.ZincBorder
 import com.mystudytracker.app.ui.theme.ZincSurface
+import com.mystudytracker.app.ui.theme.ZincSurfaceVariant
 import com.mystudytracker.app.ui.theme.ZincTextMuted
 import com.mystudytracker.app.ui.theme.ZincTextPrimary
 import com.mystudytracker.app.ui.theme.ZincTextSecondary
@@ -58,6 +62,7 @@ import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.TextStyle
 import java.util.Locale
+import kotlinx.coroutines.delay
 
 private val WEEKDAY_LABELS = listOf("S", "M", "T", "W", "T", "F", "S")
 
@@ -67,11 +72,18 @@ fun CalendarScreen(
     onDateSelected: (LocalDate) -> Unit
 ) {
     val completedCounts by viewModel.completedCountByDate.collectAsState()
-    val today = remember { LocalDate.now() }
+    val trackedToday by viewModel.today.collectAsState()
+    val lastSyncedLabel by viewModel.lastSyncedLabel.collectAsState()
+    val bannerMessage by viewModel.bannerMessage.collectAsState()
+    val syncing by viewModel.syncing.collectAsState()
+
+    // Only used to pick which month is shown first - the actual "today" used for highlighting and
+    // unlocking days always comes from the uptime-anchored tracker above, never the wall clock.
+    val wallClockNow = remember { LocalDate.now() }
     val startMonth = remember { YearMonth.from(DateRules.START_DATE) }
     val endMonth = remember { YearMonth.from(DateRules.END_DATE) }
     val initialMonth = remember {
-        val current = YearMonth.from(today)
+        val current = YearMonth.from(wallClockNow)
         when {
             current.isBefore(startMonth) -> startMonth
             current.isAfter(endMonth) -> endMonth
@@ -81,6 +93,17 @@ fun CalendarScreen(
     var cursorMonth by rememberSaveable { mutableStateOf(initialMonth.toString()) }
     val month = YearMonth.parse(cursorMonth)
 
+    // Before the first-ever sync, there is no verified "today" - fall back to a date before the
+    // tracked range so every day renders as locked/future rather than guessing from the wall clock.
+    val today = trackedToday ?: DateRules.START_DATE.minusDays(1)
+
+    if (bannerMessage != null) {
+        LaunchedEffect(bannerMessage) {
+            delay(4500)
+            viewModel.clearBanner()
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -89,16 +112,94 @@ fun CalendarScreen(
             .navigationBarsPadding()
             .padding(horizontal = 20.dp)
     ) {
-        Spacer(Modifier.height(28.dp))
-        Text(
-            text = "KOUSHIK'S NEET 2027 TRACKER",
-            color = ZincTextMuted,
-            fontSize = 13.sp,
-            letterSpacing = 1.5.sp,
-            fontWeight = FontWeight.Medium,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth()
-        )
+        Spacer(Modifier.height(16.dp))
+
+        // Top bar: always-visible manual "Sync Date" action + last-synced caption. The app never
+        // touches the network on its own - only this explicit tap does.
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(horizontalAlignment = Alignment.End) {
+                TextButton(onClick = { viewModel.syncDate() }, enabled = !syncing) {
+                    Icon(
+                        Icons.Filled.Sync,
+                        contentDescription = null,
+                        tint = if (syncing) ZincTextMuted else AccentBlue,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Text(
+                        text = if (syncing) "Syncing..." else "Sync Date",
+                        color = if (syncing) ZincTextMuted else AccentBlue,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.padding(start = 6.dp)
+                    )
+                }
+                Text(
+                    text = "Last synced: ${lastSyncedLabel ?: "never"}",
+                    color = ZincTextMuted,
+                    fontSize = 11.sp,
+                    modifier = Modifier.padding(end = 4.dp)
+                )
+            }
+        }
+
+        if (bannerMessage != null) {
+            Spacer(Modifier.height(8.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(ZincSurfaceVariant)
+                    .padding(horizontal = 14.dp, vertical = 10.dp)
+            ) {
+                Text(
+                    text = bannerMessage ?: "",
+                    color = ZincTextSecondary,
+                    fontSize = 12.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
+
+        Spacer(Modifier.height(12.dp))
+
+        // Three-line masthead: line 2 ("FINAL ATTEMPT: NEET 2027") is the bold focal point, lines
+        // 1 and 3 are smaller/muted but still comfortably readable - never squint-small.
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "KOUSHIK'S",
+                color = ZincTextMuted,
+                fontSize = 14.sp,
+                letterSpacing = 1.5.sp,
+                fontWeight = FontWeight.Medium,
+                textAlign = TextAlign.Center
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                text = "FINAL ATTEMPT: NEET 2027",
+                color = AccentBlue,
+                fontSize = 21.sp,
+                letterSpacing = 0.4.sp,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                text = "STUDY TRACKER",
+                color = ZincTextMuted,
+                fontSize = 14.sp,
+                letterSpacing = 1.5.sp,
+                fontWeight = FontWeight.Medium,
+                textAlign = TextAlign.Center
+            )
+        }
 
         // Calendar block is vertically centered in the remaining space between the
         // title above and the legend below, so the screen doesn't feel top-heavy.

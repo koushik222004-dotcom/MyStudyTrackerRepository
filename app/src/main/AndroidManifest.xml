@@ -1,5 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Used only for the explicit, user-triggered "Sync Date" action - the app never
+         calls the network automatically and stays fully offline otherwise. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <application
         android:name=".MyStudyTrackerApplication"
         android:allowBackup="true"

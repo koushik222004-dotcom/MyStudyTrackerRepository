@@ -3,6 +3,7 @@ package com.mystudytracker.app.ui.checklist
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,7 +18,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -29,6 +29,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -63,6 +64,8 @@ fun ChecklistScreen(
 ) {
     val checked by viewModel.checked.collectAsState()
     val completedCount = checked.values.count { it }
+    val totalCount = TaskCatalog.totalTaskCount
+    val progressFraction = if (totalCount > 0) completedCount.toFloat() / totalCount else 0f
 
     Box(modifier = Modifier.fillMaxSize().background(ZincBackground)) {
         Column(
@@ -70,7 +73,7 @@ fun ChecklistScreen(
                 .fillMaxSize()
                 .statusBarsPadding()
                 .verticalScroll(rememberScrollState())
-                .padding(bottom = 96.dp)
+                .padding(bottom = 84.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(start = 12.dp, top = 12.dp, end = 20.dp, bottom = 12.dp),
@@ -97,24 +100,47 @@ fun ChecklistScreen(
             }
         }
 
-        Box(
+        // Sticky, edge-to-edge bottom bar. It installs its own no-op clickable so it always
+        // consumes its own touch events - taps here can never fall through to the checklist row
+        // underneath, unlike the old floating pill.
+        val absorbTouches = remember { MutableInteractionSource() }
+        Column(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .navigationBarsPadding()
-                .padding(horizontal = 16.dp, vertical = 20.dp)
-                .clip(RoundedCornerShape(20.dp))
                 .background(ZincSurface)
-                .border(1.dp, ZincBorder, RoundedCornerShape(20.dp))
-                .padding(vertical = 14.dp),
-            contentAlignment = Alignment.Center
+                .clickable(interactionSource = absorbTouches, indication = null) {
+                    // Intentionally empty: this bar exists to be a solid, tappable surface that
+                    // never passes touches through to whatever is rendered behind it.
+                }
         ) {
-            Text(
-                text = "Completed: $completedCount / ${TaskCatalog.totalTaskCount}",
-                color = ZincTextPrimary,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Medium
-            )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(3.dp)
+                    .background(ZincBorder)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(fraction = progressFraction.coerceIn(0f, 1f))
+                        .height(3.dp)
+                        .background(AccentEmerald)
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 14.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "$completedCount/$totalCount completed",
+                    color = ZincTextPrimary,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
         }
     }
 }
