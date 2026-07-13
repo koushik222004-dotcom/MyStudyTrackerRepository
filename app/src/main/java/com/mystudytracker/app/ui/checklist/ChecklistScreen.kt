@@ -82,7 +82,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -173,7 +172,6 @@ fun ChecklistScreen(
     val note by viewModel.note.collectAsState()
     val attachments by viewModel.attachments.collectAsState()
     var sheetOpen by rememberSaveable { mutableStateOf(false) }
-    var showLockDialog by rememberSaveable { mutableStateOf(false) }
     val completedCount = checked.values.count { it }
     val totalCount = TaskCatalog.totalTaskCount
     val allComplete = totalCount > 0 && completedCount == totalCount
@@ -184,8 +182,7 @@ fun ChecklistScreen(
         label = "checklistProgress"
     )
 
-    // Hardware/gesture back dismisses the lock dialog first, then the R&A panel.
-    BackHandler(enabled = showLockDialog) { showLockDialog = false }
+    // Hardware/gesture back closes the panel instead of leaving the screen while it's open.
     BackHandler(enabled = sheetOpen) { sheetOpen = false }
 
     Box(modifier = Modifier.fillMaxSize().background(ZincBackground)) {
@@ -250,7 +247,7 @@ fun ChecklistScreen(
             allComplete = allComplete,
             locked = locked,
             animatedProgressFraction = animatedProgressFraction,
-            onLock = { showLockDialog = true }
+            onLock = { viewModel.lockDay() }
         )
 
         // ── Remark & Attachments panel ──────────────────────────────────────────────────────
@@ -298,142 +295,6 @@ fun ChecklistScreen(
                 },
                 onRemoveAttachment = { id -> viewModel.removeAttachment(id) }
             )
-        }
-
-        // ── Lock confirmation dialog ────────────────────────────────────────────────────────
-        // Scrim — tapping outside the card dismisses the dialog with no action.
-        AnimatedVisibility(
-            visible = showLockDialog,
-            enter = fadeIn(tween(180)),
-            exit = fadeOut(tween(160)),
-            modifier = Modifier.fillMaxSize()
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.6f))
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) { showLockDialog = false }
-            )
-        }
-        // Centered card — scales in from the middle of the screen.
-        AnimatedVisibility(
-            visible = showLockDialog,
-            enter = fadeIn(tween(200)) + scaleIn(tween(200), initialScale = 0.88f),
-            exit = fadeOut(tween(150)) + scaleOut(tween(150), targetScale = 0.92f),
-            modifier = Modifier.align(Alignment.Center)
-        ) {
-            LockConfirmDialog(
-                onDismiss = { showLockDialog = false },
-                onConfirm = {
-                    showLockDialog = false
-                    viewModel.lockDay()
-                }
-            )
-        }
-    }
-}
-
-// ── Lock confirmation dialog ───────────────────────────────────────────────────────────────────
-
-/**
- * Centered card dialog asking the user to confirm before permanently locking the day.
- * Styled with the same zinc surface, border, corner radius, and shadow language as the rest
- * of the app. Cancel and Lock Day sit side-by-side at the bottom — equal width, compact height.
- */
-@Composable
-private fun LockConfirmDialog(
-    onDismiss: () -> Unit,
-    onConfirm: () -> Unit
-) {
-    Column(
-        modifier = Modifier
-            .padding(horizontal = 32.dp)
-            .shadow(elevation = 32.dp, shape = RoundedCornerShape(24.dp))
-            .clip(RoundedCornerShape(24.dp))
-            .background(ZincSurface)
-            .border(1.dp, ZincBorder, RoundedCornerShape(24.dp))
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null
-            ) {}
-            .padding(horizontal = 24.dp, vertical = 28.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        // Icon badge
-        Box(
-            modifier = Modifier
-                .size(52.dp)
-                .clip(RoundedCornerShape(16.dp))
-                .background(AccentEmerald.copy(alpha = 0.12f)),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.Outlined.Lock,
-                contentDescription = null,
-                tint = AccentEmerald,
-                modifier = Modifier.size(24.dp)
-            )
-        }
-        Spacer(Modifier.height(18.dp))
-        // Title
-        Text(
-            text = "Lock this day?",
-            color = ZincTextPrimary,
-            fontSize = 17.sp,
-            fontWeight = FontWeight.SemiBold,
-            textAlign = TextAlign.Center
-        )
-        Spacer(Modifier.height(8.dp))
-        // Description
-        Text(
-            text = "All tasks will be permanently frozen.\nThis cannot be undone.",
-            color = ZincTextSecondary,
-            fontSize = 14.sp,
-            lineHeight = 20.sp,
-            textAlign = TextAlign.Center
-        )
-        Spacer(Modifier.height(24.dp))
-        // Buttons
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(ZincSurfaceVariant)
-                    .border(1.dp, ZincBorder, RoundedCornerShape(12.dp))
-                    .clickable(onClick = onDismiss)
-                    .padding(vertical = 13.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "Cancel",
-                    color = ZincTextPrimary,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Medium
-                )
-            }
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(AccentEmerald)
-                    .clickable(onClick = onConfirm)
-                    .padding(vertical = 13.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "Lock Day",
-                    color = ZincBackground,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
         }
     }
 }
@@ -919,10 +780,17 @@ private fun LockableBottomBar(
 ) {
     val interactive = allComplete && !locked
 
-    val label = when {
-        locked      -> "Checklist Locked"
-        allComplete -> "Tap to Lock Checklist"
-        else        -> "$completedCount/$totalCount completed"
+    // Inline confirmation state — same pattern as the attachment chip delete confirm.
+    var confirming by remember { mutableStateOf(false) }
+    // If the day becomes locked from outside, reset confirming state.
+    LaunchedEffect(locked) { if (locked) confirming = false }
+
+    // Four distinct phases drive AnimatedContent.
+    val barPhase = when {
+        locked     -> "locked"
+        confirming -> "confirming"
+        allComplete -> "complete"
+        else        -> "progress"
     }
 
     val absorbTouches = remember { MutableInteractionSource() }
@@ -932,9 +800,13 @@ private fun LockableBottomBar(
             .background(ZincSurface)
             .navigationBarsPadding()
             .clickable(interactionSource = absorbTouches, indication = null) {
-                if (interactive) onLock()
+                when {
+                    confirming  -> confirming = false  // tap outside = cancel
+                    interactive -> confirming = true   // enter confirmation mode
+                }
             }
     ) {
+        // Progress track
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -948,15 +820,25 @@ private fun LockableBottomBar(
                     .background(AccentEmerald)
             )
         }
+
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(52.dp),
             contentAlignment = Alignment.Center
         ) {
-            AnimatedContent(targetState = label, label = "bottomBarLabel") { currentLabel ->
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (locked) {
+            AnimatedContent(
+                targetState = barPhase,
+                label = "bottomBarPhase",
+                transitionSpec = {
+                    (fadeIn(tween(200)) + scaleIn(tween(200), initialScale = 0.92f))
+                        .togetherWith(fadeOut(tween(150)) + scaleOut(tween(150), targetScale = 0.96f))
+                }
+            ) { phase ->
+                when (phase) {
+
+                    // ── Locked ────────────────────────────────────────────────
+                    "locked" -> Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
                             imageVector = Icons.Filled.Lock,
                             contentDescription = null,
@@ -964,7 +846,68 @@ private fun LockableBottomBar(
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(Modifier.width(8.dp))
-                    } else if (allComplete) {
+                        Text(
+                            text = "Checklist Locked",
+                            color = ZincTextMuted,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+
+                    // ── Are you sure? ─────────────────────────────────────────
+                    "confirming" -> Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text(
+                            text = "Are you sure?",
+                            color = ZincTextSecondary,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        // Yes — confirm lock
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(AccentEmerald)
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null
+                                ) { confirming = false; onLock() }
+                                .padding(horizontal = 14.dp, vertical = 6.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Yes",
+                                color = ZincBackground,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                        // No — cancel
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(ZincSurfaceVariant)
+                                .border(1.dp, ZincBorder, RoundedCornerShape(8.dp))
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null
+                                ) { confirming = false }
+                                .padding(horizontal = 14.dp, vertical = 6.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "No",
+                                color = ZincTextPrimary,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+
+                    // ── All complete, ready to lock ───────────────────────────
+                    "complete" -> Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
                             imageVector = Icons.Outlined.Lock,
                             contentDescription = null,
@@ -972,10 +915,18 @@ private fun LockableBottomBar(
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = "Tap to Lock Checklist",
+                            color = ZincTextPrimary,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Medium
+                        )
                     }
-                    Text(
-                        text = currentLabel,
-                        color = if (locked) ZincTextMuted else ZincTextPrimary,
+
+                    // ── In progress ───────────────────────────────────────────
+                    else -> Text(
+                        text = "$completedCount/$totalCount completed",
+                        color = ZincTextPrimary,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Medium
                     )
