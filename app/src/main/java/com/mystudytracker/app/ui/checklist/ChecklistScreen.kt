@@ -24,8 +24,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.shrinkVertically
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -870,23 +868,18 @@ private fun LockableBottomBar(
                 // independent of the progress bar and independent of the size/fade behavior below.
                 contentAlignment = Alignment.Center,
                 transitionSpec = {
-                    // Directional fade-slide: the incoming phase rises up from a small offset
-                    // while fading in (FastOutSlowIn — quick start, smooth landing), and the
-                    // outgoing phase drifts upward while fading out (LinearOutSlowIn — steady
-                    // exit with a soft deceleration at the end). The 20px drift is subtle enough
-                    // to stay invisible as a "slide" but enough to give the swap a clear sense
-                    // of direction and momentum — what makes it feel smooth vs a flat dissolve.
+                    // Pure crossfade — no position change at all. The outgoing phase fades out
+                    // with a linear ease so it dissolves evenly; the incoming phase fades in with
+                    // FastOutSlowIn so it appears quickly and settles smoothly into full opacity.
+                    // The asymmetric durations (outgoing slightly shorter than incoming) keep the
+                    // two alpha curves from perfectly mirroring each other, which is what makes a
+                    // crossfade feel fluid rather than mechanical.
                     //
-                    // SizeTransform is still snapped: AnimatedContent animates its bounding box
-                    // between phases by default, which re-centers content every frame and reads
-                    // as a diagonal jump. Snapping the size change away keeps the movement
-                    // purely vertical and clean.
-                    (fadeIn(tween(250, easing = FastOutSlowInEasing)) +
-                        slideInVertically(tween(250, easing = FastOutSlowInEasing)) { 20 })
-                        .togetherWith(
-                            fadeOut(tween(180, easing = LinearOutSlowInEasing)) +
-                                slideOutVertically(tween(180, easing = LinearOutSlowInEasing)) { -20 }
-                        )
+                    // SizeTransform is snapped: AnimatedContent animates its bounding box by
+                    // default, which re-centers differently-sized content every frame and reads as
+                    // a diagonal jump even with pure fades. Snapping kills that artifact entirely.
+                    fadeIn(tween(280, easing = FastOutSlowInEasing))
+                        .togetherWith(fadeOut(tween(200, easing = LinearOutSlowInEasing)))
                         .using(SizeTransform(clip = false, sizeAnimationSpec = { _, _ -> snap() }))
                 }
             ) { phase ->
