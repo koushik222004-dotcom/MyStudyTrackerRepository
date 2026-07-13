@@ -372,7 +372,7 @@ private fun RemarkAttachmentsSheet(
         // handling avoids it being applied twice (once by the sheet, once by us), which is what
         // let a frame of content show through past the navigation bar during the open/close
         // slide animation.
-        windowInsets = WindowInsets(0, 0, 0, 0)
+        contentWindowInsets = { WindowInsets(0, 0, 0, 0) }
     ) {
         Column(
             modifier = Modifier
