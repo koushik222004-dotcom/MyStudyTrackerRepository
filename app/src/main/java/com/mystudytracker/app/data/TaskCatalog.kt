@@ -108,7 +108,7 @@ object TaskCatalog {
             title = "Reading",
             icon = Icons.Outlined.MenuBook,
             iconTint = Color(0xFFA3E635),
-            tasks = listOf(TaskItem("reading", "Reading")),
+            tasks = listOf(TaskItem("reading", "NCERT Reading")),
             // Same scope rule as Practice: current chapter on weekdays, current + previous chapter
             // on alternate Sundays, all previous chapters covered on the other Sundays.
             ruleProvider = { date -> DateRules.practiceRule(date) }
