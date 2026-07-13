@@ -24,6 +24,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -971,12 +973,46 @@ private fun LockableBottomBar(
                     }
 
                     // ── In progress ───────────────────────────────────────────
-                    else -> Text(
-                        text = "$completedCount/$totalCount completed",
-                        color = ZincTextPrimary,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Medium
-                    )
+                    // Only the number rolls; "/$totalCount completed" stays fixed so the
+                    // surrounding text doesn't jump or resize during the animation.
+                    else -> Row(verticalAlignment = Alignment.CenterVertically) {
+                        AnimatedContent(
+                            targetState = completedCount,
+                            label = "completedCountRoll",
+                            transitionSpec = {
+                                if (targetState > initialState) {
+                                    // Ticking up — new number rises in from below, old exits upward.
+                                    (fadeIn(tween(200, easing = FastOutSlowInEasing)) +
+                                        slideInVertically(tween(200, easing = FastOutSlowInEasing)) { it })
+                                        .togetherWith(
+                                            fadeOut(tween(150, easing = LinearOutSlowInEasing)) +
+                                                slideOutVertically(tween(150, easing = LinearOutSlowInEasing)) { -it }
+                                        )
+                                } else {
+                                    // Ticking down (uncheck) — new number drops in from above.
+                                    (fadeIn(tween(200, easing = FastOutSlowInEasing)) +
+                                        slideInVertically(tween(200, easing = FastOutSlowInEasing)) { -it })
+                                        .togetherWith(
+                                            fadeOut(tween(150, easing = LinearOutSlowInEasing)) +
+                                                slideOutVertically(tween(150, easing = LinearOutSlowInEasing)) { it }
+                                        )
+                                }.using(SizeTransform(clip = true, sizeAnimationSpec = { _, _ -> snap() }))
+                            }
+                        ) { count ->
+                            Text(
+                                text = "$count",
+                                color = ZincTextPrimary,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                        Text(
+                            text = "/$totalCount completed",
+                            color = ZincTextPrimary,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
                 }
             }
         }
