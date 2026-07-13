@@ -190,11 +190,11 @@ fun CalendarScreen(
         }
 
         // Calendar block is vertically centered in the remaining space between the title above
-        // and the legend below, so the screen doesn't feel top-heavy. Also scrollable: in
+        // and the key below, so the screen doesn't feel top-heavy. Also scrollable: in
         // portrait this area's content is always shorter than its allotted space so scrolling
         // never engages and centering looks identical to before, but in landscape the day grid
         // (sized off the much wider available width) can be taller than the remaining vertical
-        // space - without this, it would overflow past this block and overlap the legend below
+        // space - without this, it would overflow past this block and overlap the key below
         // instead of scaling down or scrolling.
         Column(
             modifier = Modifier
@@ -276,7 +276,7 @@ fun CalendarScreen(
             }
         }
 
-        LegendCard()
+        KeyCard()
         Spacer(Modifier.height(20.dp))
     }
 }
@@ -451,7 +451,7 @@ private fun DayCell(
 }
 
 @Composable
-private fun LegendCard() {
+private fun KeyCard() {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -460,7 +460,7 @@ private fun LegendCard() {
             .padding(16.dp)
     ) {
         Text(
-            text = "LEGEND",
+            text = "KEY",
             color = ZincTextMuted,
             fontSize = 12.sp,
             letterSpacing = 1.sp,

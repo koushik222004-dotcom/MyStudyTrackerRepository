@@ -6,14 +6,17 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -42,9 +45,11 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.outlined.AttachFile
+import androidx.compose.material.icons.outlined.Attachment
 import androidx.compose.material.icons.outlined.Audiotrack
 import androidx.compose.material.icons.outlined.Description
+import androidx.compose.material.icons.outlined.ErrorOutline
+import androidx.compose.material.icons.outlined.FileUpload
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Videocam
@@ -106,6 +111,47 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+// ── MIME support list ──────────────────────────────────────────────────────────────────────────
+// Broad prefix matches cover all image/video/audio sub-formats automatically. DOCUMENT covers
+// office files, PDFs, archives, and plain text. Everything else - APKs, executables, system
+// files, etc. - is rejected with a user-facing error rather than silently failing.
+
+private val SUPPORTED_MIME_PREFIXES = setOf("image/", "video/", "audio/")
+
+private val SUPPORTED_MIME_EXACT = setOf(
+    // Documents
+    "application/pdf",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/vnd.ms-powerpoint",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "text/plain",
+    "text/csv",
+    // Archives
+    "application/zip",
+    "application/x-zip-compressed",
+    "application/x-rar-compressed",
+    "application/x-7z-compressed",
+    "application/gzip",
+    "application/x-gzip",
+    "application/x-tar",
+    "application/x-bzip2",
+)
+
+private fun isSupportedMime(mime: String): Boolean =
+    SUPPORTED_MIME_PREFIXES.any { mime.startsWith(it) } || mime in SUPPORTED_MIME_EXACT
+
+private fun attachmentTypeFromMime(mime: String): AttachmentType = when {
+    mime.startsWith("image/") -> AttachmentType.IMAGE
+    mime.startsWith("video/") -> AttachmentType.VIDEO
+    mime.startsWith("audio/") -> AttachmentType.AUDIO
+    else                      -> AttachmentType.DOCUMENT
+}
+
+// ── Screen ────────────────────────────────────────────────────────────────────────────────────
+
 private val DATE_LABEL_FORMAT: DateTimeFormatter =
     DateTimeFormatter.ofPattern("EEEE d MMMM yyyy", Locale.getDefault())
 
@@ -137,31 +183,37 @@ fun ChecklistScreen(
                 .fillMaxSize()
                 .statusBarsPadding()
                 .verticalScroll(rememberScrollState())
-                // Reserves space for the sticky bottom bar (3dp progress + 52dp content = 55dp)
-                // plus real breathing room, on top of the device's own navigation-bar inset - the
-                // bar itself is edge-to-edge with navigationBarsPadding(), so without also applying
-                // it here, 3-button-nav devices (~48dp inset) could clip the last section behind it.
                 .navigationBarsPadding()
                 .padding(bottom = 84.dp)
         ) {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(start = 12.dp, top = 12.dp, end = 12.dp, bottom = 12.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 12.dp, top = 12.dp, end = 12.dp, bottom = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(onClick = onBack) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = ZincTextPrimary)
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Back",
+                        tint = ZincTextPrimary
+                    )
                 }
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(text = date.format(DATE_LABEL_FORMAT), color = ZincTextPrimary, fontSize = 17.sp, fontWeight = FontWeight.Medium)
+                    Text(
+                        text = date.format(DATE_LABEL_FORMAT),
+                        color = ZincTextPrimary,
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Medium
+                    )
                     Text(text = "Daily checklist", color = ZincTextMuted, fontSize = 12.sp)
                 }
-                // Paperclip button: turns blue when a remark or any file is stored for this day.
-                // Lives outside the locked task area so remarks and files can always be added or
-                // edited regardless of lock status - locking only freezes the task checkboxes.
+                // Document-with-clip icon: conveys both the written remark (document body) and the
+                // file attachment (clip). Turns blue when either a remark or any attachment exists.
                 val hasContent = !note.isNullOrBlank() || attachments.isNotEmpty()
                 IconButton(onClick = { sheetOpen = true }) {
                     Icon(
-                        imageVector = Icons.Outlined.AttachFile,
+                        imageVector = Icons.Outlined.Attachment,
                         contentDescription = if (hasContent) "Edit remarks & attachments" else "Add remarks or attachments",
                         tint = if (hasContent) AccentBlue else ZincTextPrimary,
                         modifier = Modifier.size(22.dp)
@@ -187,9 +239,6 @@ fun ChecklistScreen(
             }
         }
 
-        // Sticky, edge-to-edge bottom bar. Doubles as the permanent-lock control: once every task
-        // is checked its own label becomes a one-tap "lock" affordance, so no new element is
-        // introduced into the layout - it is always the same bar, just adapting.
         LockableBottomBar(
             modifier = Modifier.align(Alignment.BottomCenter),
             completedCount = completedCount,
@@ -216,15 +265,18 @@ fun ChecklistScreen(
     }
 }
 
+// ── Remarks & Attachments sheet ────────────────────────────────────────────────────────────────
+
 /**
- * Bottom sheet combining the day's free-form remark and any file attachments into one unified
- * surface. The remark autosaves on a debounce - no explicit save button needed.
+ * Combined bottom sheet for the day's free-form remark and file attachments.
  *
- * Sheet content uses [navigationBarsPadding] so it sits cleanly above the navigation bar,
- * matching the same pattern as the sticky bottom progress bar on the checklist screen.
+ * A single "Upload File" button opens the system file picker with no MIME pre-filter so users
+ * see all their files naturally. After selection the MIME type is validated: images, videos,
+ * audio, documents (PDF/Office/text), and archives are accepted; anything else - APKs,
+ * executables, etc. - shows an inline "Unsupported file format" error that auto-dismisses.
  *
- * Files are copied to internal storage on pick so the paths remain stable indefinitely, unlike
- * raw content:// URIs from the system picker which can expire after the session.
+ * The remark autosaves on a 400ms debounce. Sheet sits above the navigation bar via
+ * [navigationBarsPadding], consistent with the bottom progress bar on the checklist screen.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -240,46 +292,37 @@ private fun RemarksAttachmentsSheet(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var text by remember { mutableStateOf(initialNote ?: "") }
+    var fileError by remember { mutableStateOf<String?>(null) }
     val sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    // Debounced autosave: waits for a short pause in typing before persisting, so every keystroke
-    // doesn't trigger its own database write.
+    // Debounced autosave - waits for typing to pause before writing to the database.
     LaunchedEffect(text) {
         delay(400)
         onSaveNote(text)
     }
 
-    // One launcher per attachment type - each copies the picked file to internal storage then
-    // hands the stable path + display name to the ViewModel.
-    val imageLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        uri?.let {
-            scope.launch {
-                copyToInternalStorage(context, it, date.toString(), AttachmentType.IMAGE)
-                    ?.let { (path, name) -> onAddAttachment(path, AttachmentType.IMAGE, name) }
-            }
+    // Error banner auto-dismisses after 3 seconds so the user doesn't have to manually clear it.
+    LaunchedEffect(fileError) {
+        if (fileError != null) {
+            delay(3000)
+            fileError = null
         }
     }
-    val videoLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+
+    // Single launcher - opens all files (*/*). MIME validation happens after selection so the
+    // system picker shows the user's full file library without artificial restrictions.
+    val fileLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri?.let {
-            scope.launch {
-                copyToInternalStorage(context, it, date.toString(), AttachmentType.VIDEO)
-                    ?.let { (path, name) -> onAddAttachment(path, AttachmentType.VIDEO, name) }
-            }
-        }
-    }
-    val audioLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        uri?.let {
-            scope.launch {
-                copyToInternalStorage(context, it, date.toString(), AttachmentType.AUDIO)
-                    ?.let { (path, name) -> onAddAttachment(path, AttachmentType.AUDIO, name) }
-            }
-        }
-    }
-    val documentLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        uri?.let {
-            scope.launch {
-                copyToInternalStorage(context, it, date.toString(), AttachmentType.DOCUMENT)
-                    ?.let { (path, name) -> onAddAttachment(path, AttachmentType.DOCUMENT, name) }
+            val mime = context.contentResolver.getType(it) ?: ""
+            if (isSupportedMime(mime)) {
+                fileError = null
+                val type = attachmentTypeFromMime(mime)
+                scope.launch {
+                    copyToInternalStorage(context, it, date.toString(), type)
+                        ?.let { (path, name) -> onAddAttachment(path, type, name) }
+                }
+            } else {
+                fileError = "Unsupported file format"
             }
         }
     }
@@ -296,7 +339,7 @@ private fun RemarksAttachmentsSheet(
                 .padding(horizontal = 20.dp)
                 .padding(bottom = 20.dp)
         ) {
-            // ── Header ───────────────────────────────────────────────────────────
+            // ── Header ──────────────────────────────────────────────────────────
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
@@ -329,7 +372,7 @@ private fun RemarksAttachmentsSheet(
 
             Spacer(Modifier.height(18.dp))
 
-            // ── REMARK ───────────────────────────────────────────────────────────
+            // ── REMARK ──────────────────────────────────────────────────────────
             Text(
                 text = "REMARK",
                 color = ZincTextMuted,
@@ -370,7 +413,7 @@ private fun RemarksAttachmentsSheet(
             HorizontalDivider(color = ZincBorder, thickness = 1.dp)
             Spacer(Modifier.height(16.dp))
 
-            // ── ATTACHMENTS ──────────────────────────────────────────────────────
+            // ── ATTACHMENTS ─────────────────────────────────────────────────────
             Text(
                 text = "ATTACHMENTS",
                 color = ZincTextMuted,
@@ -380,42 +423,67 @@ private fun RemarksAttachmentsSheet(
             )
             Spacer(Modifier.height(10.dp))
 
-            // Four type-picker buttons in a uniform row
+            // Single upload button - cleaner than 4 separate type buttons
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .border(1.dp, ZincBorder, RoundedCornerShape(12.dp))
+                    .background(ZincSurfaceVariant)
+                    .clickable { fileLauncher.launch("*/*") }
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
             ) {
-                AttachTypeButton(
-                    icon = Icons.Outlined.Image,
-                    label = "Image",
+                Icon(
+                    imageVector = Icons.Outlined.FileUpload,
+                    contentDescription = null,
                     tint = AccentBlue,
-                    modifier = Modifier.weight(1f),
-                    onClick = { imageLauncher.launch("image/*") }
+                    modifier = Modifier.size(20.dp)
                 )
-                AttachTypeButton(
-                    icon = Icons.Outlined.Videocam,
-                    label = "Video",
-                    tint = Color(0xFF9C6FE4),
-                    modifier = Modifier.weight(1f),
-                    onClick = { videoLauncher.launch("video/*") }
-                )
-                AttachTypeButton(
-                    icon = Icons.Outlined.Audiotrack,
-                    label = "Audio",
-                    tint = Color(0xFFE89D3A),
-                    modifier = Modifier.weight(1f),
-                    onClick = { audioLauncher.launch("audio/*") }
-                )
-                AttachTypeButton(
-                    icon = Icons.Outlined.Description,
-                    label = "Doc",
-                    tint = AccentEmerald,
-                    modifier = Modifier.weight(1f),
-                    onClick = { documentLauncher.launch("*/*") }
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    text = "Upload File",
+                    color = ZincTextPrimary,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Medium
                 )
             }
 
-            // Horizontally scrollable row of chips for every attached file
+            // Unsupported format error - slides in below the button, auto-dismisses after 3s
+            AnimatedVisibility(
+                visible = fileError != null,
+                enter = expandVertically(tween(200)) + fadeIn(tween(200)),
+                exit = shrinkVertically(tween(200)) + fadeOut(tween(200))
+            ) {
+                Column {
+                    Spacer(Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color(0x1FE05252))
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.ErrorOutline,
+                            contentDescription = null,
+                            tint = Color(0xFFE05252),
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = fileError ?: "",
+                            color = Color(0xFFE05252),
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            }
+
+            // Horizontally scrollable row of chips for each attached file
             if (attachments.isNotEmpty()) {
                 Spacer(Modifier.height(12.dp))
                 Row(
@@ -437,45 +505,9 @@ private fun RemarksAttachmentsSheet(
     }
 }
 
-/** Outlined square button for selecting a file type. */
-@Composable
-private fun AttachTypeButton(
-    icon: ImageVector,
-    label: String,
-    tint: Color,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit
-) {
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(10.dp))
-            .border(1.dp, ZincBorder, RoundedCornerShape(10.dp))
-            .background(ZincSurfaceVariant)
-            .clickable(onClick = onClick)
-            .padding(vertical = 12.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = label,
-                tint = tint,
-                modifier = Modifier.size(20.dp)
-            )
-            Text(
-                text = label,
-                color = ZincTextSecondary,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Medium
-            )
-        }
-    }
-}
+// ── Attachment chip ────────────────────────────────────────────────────────────────────────────
 
-/** Compact, dismissible chip for a single attachment. Tap to open; × to remove. */
+/** Compact dismissible chip for one attachment. Tap to open in system viewer; × to delete. */
 @Composable
 private fun AttachmentChip(
     attachment: DailyAttachment,
@@ -527,11 +559,11 @@ private fun AttachmentChip(
     }
 }
 
+// ── File utilities ────────────────────────────────────────────────────────────────────────────
+
 /**
- * Copies a file from a system-picker content URI into app-internal storage.
- * Returns (absolutePath, displayName) on success, or null if the copy fails.
- *
- * Running on [Dispatchers.IO] keeps the main thread free during the copy.
+ * Copies a picked content URI into app-internal storage on the IO dispatcher.
+ * Returns (absolutePath, displayName) or null on failure.
  */
 private suspend fun copyToInternalStorage(
     context: Context,
@@ -558,8 +590,8 @@ private suspend fun copyToInternalStorage(
 }
 
 /**
- * Opens an internal-storage attachment in an external viewer via [FileProvider].
- * Silently no-ops if the file no longer exists or no app can handle the MIME type.
+ * Opens an internal-storage file in an external viewer via FileProvider.
+ * Silently no-ops if the file is gone or no installed app handles the MIME type.
  */
 private fun openAttachment(context: Context, attachment: DailyAttachment) {
     try {
@@ -586,9 +618,11 @@ private fun openAttachment(context: Context, attachment: DailyAttachment) {
             )
         )
     } catch (_: Exception) {
-        // No installed app can handle this file type - silently ignore.
+        // No installed app can handle this file type.
     }
 }
+
+// ── Bottom bar ────────────────────────────────────────────────────────────────────────────────
 
 @Composable
 private fun LockableBottomBar(
@@ -608,10 +642,6 @@ private fun LockableBottomBar(
         else        -> "$completedCount/$totalCount completed"
     }
 
-    // Sticky, edge-to-edge bottom bar. It installs its own no-op clickable so it always consumes
-    // its own touch events - taps here can never fall through to the checklist row underneath,
-    // unlike the old floating pill. Once every task is checked, that same clickable becomes the
-    // one-tap, permanent lock action - no new element, no confirmation dialog.
     val absorbTouches = remember { MutableInteractionSource() }
     Column(
         modifier = modifier
@@ -619,11 +649,7 @@ private fun LockableBottomBar(
             .background(ZincSurface)
             .navigationBarsPadding()
             .clickable(interactionSource = absorbTouches, indication = null) {
-                if (interactive) {
-                    onLock()
-                }
-                // Otherwise intentionally empty: the bar exists to be a solid, tappable surface
-                // that never passes touches through to whatever is rendered behind it.
+                if (interactive) onLock()
             }
     ) {
         Box(
@@ -647,9 +673,6 @@ private fun LockableBottomBar(
         ) {
             AnimatedContent(targetState = label, label = "bottomBarLabel") { currentLabel ->
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    // Same lock glyph throughout - hollow before the day is finalized, filled solid
-                    // once it is - so the two states read as before/after of one action rather than
-                    // needing a wording change to tell them apart.
                     if (locked) {
                         Icon(
                             imageVector = Icons.Filled.Lock,
@@ -679,6 +702,8 @@ private fun LockableBottomBar(
     }
 }
 
+// ── Section & task rows ───────────────────────────────────────────────────────────────────────
+
 @Composable
 private fun SectionCard(
     section: SectionDefinition,
@@ -702,7 +727,12 @@ private fun SectionCard(
                 modifier = Modifier.size(18.dp)
             )
             Spacer(Modifier.width(8.dp))
-            Text(text = section.title, color = ZincTextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+            Text(
+                text = section.title,
+                color = ZincTextPrimary,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Medium
+            )
         }
 
         val ruleText = section.ruleProvider?.invoke(date)
@@ -715,7 +745,12 @@ private fun SectionCard(
                     .background(ZincSurfaceVariant)
                     .padding(horizontal = 10.dp, vertical = 5.dp)
             ) {
-                Text(text = ruleText, color = ZincTextSecondary, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                Text(
+                    text = ruleText,
+                    color = ZincTextSecondary,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium
+                )
             }
             Spacer(Modifier.height(6.dp))
         } else {
@@ -737,9 +772,6 @@ private fun SectionCard(
 
 @Composable
 private fun TaskRow(task: TaskItem, checked: Boolean, locked: Boolean, onToggle: () -> Unit) {
-    // Independent, self-contained animation state for this one row's checkbox bounce - each row
-    // animates on its own and never competes with the progress bar / strikethrough animations
-    // that fire from the same tap.
     val checkboxScale = remember { Animatable(1f) }
     LaunchedEffect(checked) {
         if (checked) {
@@ -748,8 +780,6 @@ private fun TaskRow(task: TaskItem, checked: Boolean, locked: Boolean, onToggle:
         }
     }
 
-    // Fade between a plain label and a struck-through copy stacked in the same place, so the
-    // strikethrough appears to fade in/out instead of snapping on.
     val strikeAlpha by animateFloatAsState(
         targetValue = if (checked) 1f else 0f,
         animationSpec = tween(200),
@@ -793,7 +823,12 @@ private fun TaskRow(task: TaskItem, checked: Boolean, locked: Boolean, onToggle:
         }
         Spacer(Modifier.width(12.dp))
         Box {
-            Text(text = task.label, color = labelColor, fontSize = 15.sp, modifier = Modifier.alpha(1f - strikeAlpha))
+            Text(
+                text = task.label,
+                color = labelColor,
+                fontSize = 15.sp,
+                modifier = Modifier.alpha(1f - strikeAlpha)
+            )
             Text(
                 text = task.label,
                 color = labelColor,
