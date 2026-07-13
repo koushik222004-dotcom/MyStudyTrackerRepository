@@ -1121,7 +1121,12 @@ private fun TaskRow(task: TaskItem, checked: Boolean, locked: Boolean, onToggle:
                 .border(2.dp, if (checked) AccentEmerald else ZincBorder, RoundedCornerShape(6.dp)),
             contentAlignment = Alignment.Center
         ) {
-            AnimatedVisibility(
+            // Fully-qualified deliberately: this Box is not a RowScope/ColumnScope receiver, and
+            // an unqualified call here resolves to the RowScope extension overload of
+            // AnimatedVisibility (same name, different package member) instead of the top-level
+            // one, which fails to compile with "cannot be called in this context with an implicit
+            // receiver". The qualified name pins it to the correct overload.
+            androidx.compose.animation.AnimatedVisibility(
                 visible = checked,
                 enter = fadeIn(tween(120)) + scaleIn(tween(120), initialScale = 0.6f),
                 exit = fadeOut(tween(80)) + scaleOut(tween(80), targetScale = 0.6f)
