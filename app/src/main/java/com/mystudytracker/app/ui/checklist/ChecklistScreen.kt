@@ -120,6 +120,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.focus.LocalFocusManager
 import com.mystudytracker.app.ui.theme.AccentRed
 
 // ── MIME support list ──────────────────────────────────────────────────────────────────────────
@@ -375,6 +376,7 @@ private fun RemarkAttachmentsPanel(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val focusManager = LocalFocusManager.current
     var text by remember { mutableStateOf(initialNote ?: "") }
     var fileError by remember { mutableStateOf<String?>(null) }
 
@@ -533,7 +535,18 @@ private fun RemarkAttachmentsPanel(
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
                     .background(ZincSurfaceVariant)
-                    .clickable { fileLauncher.launch("*/*") }
+                    .clickable {
+                        // Drop focus (and the keyboard) before handing off to the system picker.
+                        // Without this, focus silently returns to the remark field the moment the
+                        // picker closes, which reopens the keyboard and makes its cursor handle
+                        // jump for a frame while everything resyncs. Clearing focus up front means
+                        // that automatic refocus-and-reopen never happens - the field stays put,
+                        // unfocused, until the user deliberately taps back into it - so there's no
+                        // resize/refocus sequence left for the handle to glitch during. The panel's
+                        // own position and size are completely untouched by this.
+                        focusManager.clearFocus()
+                        fileLauncher.launch("*/*")
+                    }
                     .padding(horizontal = 16.dp, vertical = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center
