@@ -1,0 +1,1 @@
+- [MyStudyTracker repo is a native Android app](mystudytracker-native-android.md) — no Replit preview/build; edit Kotlin, push, GitHub Actions builds the APK.
