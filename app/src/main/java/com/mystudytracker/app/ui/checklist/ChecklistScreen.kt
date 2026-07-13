@@ -9,10 +9,12 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -859,7 +861,16 @@ private fun LockableBottomBar(
                     // No slide, no scale, no drift - the old phase just dissolves into the new one
                     // at the same position, quickly enough to read as a small, deliberate touch
                     // rather than an animation you notice.
+                    //
+                    // AnimatedContent's default SizeTransform animates the container's bounding
+                    // box between the old and new phase's size. Since phases render very
+                    // differently-sized content ("142/150 completed" vs "Are you sure? Yes No")
+                    // and the box centers its content, that animated resize recenters the text
+                    // every frame - which reads as a diagonal slide even though enter/exit here
+                    // are pure fades. Snapping the size instantly (no interpolation) removes that
+                    // recentering artifact so only the fade remains visible.
                     fadeIn(tween(150)).togetherWith(fadeOut(tween(150)))
+                        .using(SizeTransform(clip = false, sizeAnimationSpec = { _, _ -> snap() }))
                 }
             ) { phase ->
                 when (phase) {
