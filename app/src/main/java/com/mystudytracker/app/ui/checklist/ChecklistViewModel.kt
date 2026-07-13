@@ -3,6 +3,8 @@ package com.mystudytracker.app.ui.checklist
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.mystudytracker.app.data.AttachmentType
+import com.mystudytracker.app.data.DailyAttachment
 import com.mystudytracker.app.data.DailyProgress
 import com.mystudytracker.app.data.ProgressRepository
 import kotlinx.coroutines.flow.SharingStarted
@@ -16,8 +18,8 @@ class ChecklistViewModel(
     private val date: String
 ) : ViewModel() {
 
-    // Single shared observation of this date's row - checked/locked/note all derive from it below
-    // instead of each opening their own independent Room query for the exact same row.
+    // Single shared observation of this date's row - checked/locked/note all derive from it,
+    // so only one Room query is open for the same row at a time.
     private val day: StateFlow<DailyProgress?> = repository.observeByDate(date)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
@@ -30,10 +32,14 @@ class ChecklistViewModel(
         .map { it?.locked ?: false }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
-    /** Free-form note for this day. Editable independently of lock status. */
+    /** Free-form remark for this day. Editable independently of lock status. */
     val note: StateFlow<String?> = day
         .map { it?.note }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    /** File attachments for this day, ordered by insertion time. */
+    val attachments: StateFlow<List<DailyAttachment>> = repository.observeAttachments(date)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     fun toggle(taskId: String) {
         if (locked.value) return
@@ -52,10 +58,26 @@ class ChecklistViewModel(
         }
     }
 
-    /** Saves the day's note. Allowed regardless of lock status - locking only freezes tasks. */
+    /** Saves the day's remark. Allowed regardless of lock status - locking only freezes tasks. */
     fun saveNote(text: String) {
         viewModelScope.launch {
             repository.saveNote(date, text.ifBlank { null })
+        }
+    }
+
+    /** Adds a file attachment after it has been copied to internal storage by the UI layer. */
+    fun addAttachment(filePath: String, type: AttachmentType, displayName: String) {
+        viewModelScope.launch {
+            repository.addAttachment(
+                DailyAttachment(date = date, filePath = filePath, type = type, displayName = displayName)
+            )
+        }
+    }
+
+    /** Removes the attachment record and deletes its backing file from internal storage. */
+    fun removeAttachment(id: Long) {
+        viewModelScope.launch {
+            repository.removeAttachment(id)
         }
     }
 

@@ -7,10 +7,15 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [DailyProgress::class], version = 3, exportSchema = false)
+@Database(
+    entities = [DailyProgress::class, DailyAttachment::class],
+    version = 4,
+    exportSchema = false
+)
 abstract class AppDatabase : RoomDatabase() {
 
     abstract fun dailyProgressDao(): DailyProgressDao
+    abstract fun dailyAttachmentDao(): DailyAttachmentDao
 
     companion object {
         @Volatile private var INSTANCE: AppDatabase? = null
@@ -29,13 +34,34 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** Creates the daily_attachments table backing the Remarks & Attachments feature. */
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS daily_attachments (
+                        id          INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        date        TEXT    NOT NULL,
+                        filePath    TEXT    NOT NULL,
+                        type        TEXT    NOT NULL,
+                        displayName TEXT    NOT NULL,
+                        addedAt     INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
                     "mystudytracker.db"
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3).build().also { INSTANCE = it }
+                )
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                    .build()
+                    .also { INSTANCE = it }
             }
     }
 }

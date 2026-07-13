@@ -1,9 +1,17 @@
 package com.mystudytracker.app.data
 
+import java.io.File
 import kotlinx.coroutines.flow.Flow
 
-/** Thin data-access layer between the ViewModels and Room - keeps DAO/SQL details out of the UI layer. */
-class ProgressRepository(private val dao: DailyProgressDao) {
+/**
+ * Thin data-access layer between the ViewModels and Room - keeps DAO/SQL details out of the UI
+ * layer. Owns both [DailyProgressDao] (task state, lock, remark) and [DailyAttachmentDao]
+ * (per-day file attachments).
+ */
+class ProgressRepository(
+    private val dao: DailyProgressDao,
+    private val attachmentDao: DailyAttachmentDao
+) {
 
     fun observeAll(): Flow<List<DailyProgress>> = dao.observeAll()
 
@@ -19,7 +27,7 @@ class ProgressRepository(private val dao: DailyProgressDao) {
     }
 
     /**
-     * Saves the free-form note for [date], independent of task state and lock status. Creates a
+     * Saves the free-form remark for [date], independent of task state and lock status. Creates a
      * fresh row (all tasks unchecked) if [date] has no saved progress yet.
      */
     suspend fun saveNote(date: String, note: String?) {
@@ -27,5 +35,23 @@ class ProgressRepository(private val dao: DailyProgressDao) {
         if (rowsUpdated == 0) {
             dao.upsert(DailyProgress(date = date, note = note))
         }
+    }
+
+    // ── Attachments ────────────────────────────────────────────────────────────────
+
+    fun observeAttachments(date: String): Flow<List<DailyAttachment>> =
+        attachmentDao.observeByDate(date)
+
+    suspend fun addAttachment(attachment: DailyAttachment): Long =
+        attachmentDao.insert(attachment)
+
+    /**
+     * Removes the attachment record and deletes the backing file from internal storage. Safe to
+     * call if the file was already deleted externally.
+     */
+    suspend fun removeAttachment(id: Long) {
+        val path = attachmentDao.getFilePath(id)
+        attachmentDao.deleteById(id)
+        path?.let { File(it).delete() }
     }
 }

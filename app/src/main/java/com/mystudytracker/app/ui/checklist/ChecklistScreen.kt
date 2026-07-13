@@ -1,5 +1,10 @@
 package com.mystudytracker.app.ui.checklist
 
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
@@ -12,6 +17,7 @@ import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -27,16 +33,23 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.outlined.AttachFile
+import androidx.compose.material.icons.outlined.Audiotrack
+import androidx.compose.material.icons.outlined.Description
+import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Lock
-import androidx.compose.material.icons.outlined.StickyNote2
+import androidx.compose.material.icons.outlined.Videocam
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
@@ -51,6 +64,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -59,10 +73,17 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.FileProvider
+import com.mystudytracker.app.data.AttachmentType
+import com.mystudytracker.app.data.DailyAttachment
 import com.mystudytracker.app.data.SectionDefinition
 import com.mystudytracker.app.data.TaskCatalog
 import com.mystudytracker.app.data.TaskItem
@@ -75,10 +96,15 @@ import com.mystudytracker.app.ui.theme.ZincSurfaceVariant
 import com.mystudytracker.app.ui.theme.ZincTextMuted
 import com.mystudytracker.app.ui.theme.ZincTextPrimary
 import com.mystudytracker.app.ui.theme.ZincTextSecondary
+import java.io.File
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import java.util.UUID
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private val DATE_LABEL_FORMAT: DateTimeFormatter =
     DateTimeFormatter.ofPattern("EEEE d MMMM yyyy", Locale.getDefault())
@@ -93,7 +119,8 @@ fun ChecklistScreen(
     val checked by viewModel.checked.collectAsState()
     val locked by viewModel.locked.collectAsState()
     val note by viewModel.note.collectAsState()
-    var noteSheetOpen by rememberSaveable { mutableStateOf(false) }
+    val attachments by viewModel.attachments.collectAsState()
+    var sheetOpen by rememberSaveable { mutableStateOf(false) }
     val completedCount = checked.values.count { it }
     val totalCount = TaskCatalog.totalTaskCount
     val allComplete = totalCount > 0 && completedCount == totalCount
@@ -128,18 +155,15 @@ fun ChecklistScreen(
                     Text(text = date.format(DATE_LABEL_FORMAT), color = ZincTextPrimary, fontSize = 17.sp, fontWeight = FontWeight.Medium)
                     Text(text = "Daily checklist", color = ZincTextMuted, fontSize = 12.sp)
                 }
-                // Mirrors the back button on the opposite side, balancing the header. Lives outside
-                // the dimmed/locked task area below, so a note can always be added or edited even
-                // once the day is locked - locking only freezes tasks, never the note.
-                // Stays on the thinner outlined glyph in both states - only the tint communicates
-                // "this day has a note" - so the button never gets visually heavier than the back
-                // arrow beside it just because a note was added.
-                val hasNote = !note.isNullOrBlank()
-                IconButton(onClick = { noteSheetOpen = true }) {
+                // Paperclip button: turns blue when a remark or any file is stored for this day.
+                // Lives outside the locked task area so remarks and files can always be added or
+                // edited regardless of lock status - locking only freezes the task checkboxes.
+                val hasContent = !note.isNullOrBlank() || attachments.isNotEmpty()
+                IconButton(onClick = { sheetOpen = true }) {
                     Icon(
-                        imageVector = Icons.Outlined.StickyNote2,
-                        contentDescription = if (hasNote) "Edit note" else "Add note",
-                        tint = if (hasNote) AccentBlue else ZincTextPrimary,
+                        imageVector = Icons.Outlined.AttachFile,
+                        contentDescription = if (hasContent) "Edit remarks & attachments" else "Add remarks or attachments",
+                        tint = if (hasContent) AccentBlue else ZincTextPrimary,
                         modifier = Modifier.size(22.dp)
                     )
                 }
@@ -177,30 +201,44 @@ fun ChecklistScreen(
         )
     }
 
-    if (noteSheetOpen) {
-        NoteSheet(
+    if (sheetOpen) {
+        RemarksAttachmentsSheet(
             date = date,
             initialNote = note,
-            onDismiss = { noteSheetOpen = false },
-            onSave = { text -> viewModel.saveNote(text) }
+            attachments = attachments,
+            onDismiss = { sheetOpen = false },
+            onSaveNote = { text -> viewModel.saveNote(text) },
+            onAddAttachment = { filePath, type, displayName ->
+                viewModel.addAttachment(filePath, type, displayName)
+            },
+            onRemoveAttachment = { id -> viewModel.removeAttachment(id) }
         )
     }
 }
 
 /**
- * Bottom sheet for the day's free-form note. Autosaves on a short debounce as the user types -
- * there is no explicit save button, matching the checklist's own no-friction, always-persisted
- * feel. The date is repeated as the sheet's own header so it's unambiguous which day's note is
- * being edited even after scrolling the checklist behind it.
+ * Bottom sheet combining the day's free-form remark and any file attachments into one unified
+ * surface. The remark autosaves on a debounce - no explicit save button needed.
+ *
+ * Sheet content uses [navigationBarsPadding] so it sits cleanly above the navigation bar,
+ * matching the same pattern as the sticky bottom progress bar on the checklist screen.
+ *
+ * Files are copied to internal storage on pick so the paths remain stable indefinitely, unlike
+ * raw content:// URIs from the system picker which can expire after the session.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun NoteSheet(
+private fun RemarksAttachmentsSheet(
     date: LocalDate,
     initialNote: String?,
+    attachments: List<DailyAttachment>,
     onDismiss: () -> Unit,
-    onSave: (String) -> Unit
+    onSaveNote: (String) -> Unit,
+    onAddAttachment: (filePath: String, type: AttachmentType, displayName: String) -> Unit,
+    onRemoveAttachment: (id: Long) -> Unit
 ) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var text by remember { mutableStateOf(initialNote ?: "") }
     val sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -208,7 +246,42 @@ private fun NoteSheet(
     // doesn't trigger its own database write.
     LaunchedEffect(text) {
         delay(400)
-        onSave(text)
+        onSaveNote(text)
+    }
+
+    // One launcher per attachment type - each copies the picked file to internal storage then
+    // hands the stable path + display name to the ViewModel.
+    val imageLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        uri?.let {
+            scope.launch {
+                copyToInternalStorage(context, it, date.toString(), AttachmentType.IMAGE)
+                    ?.let { (path, name) -> onAddAttachment(path, AttachmentType.IMAGE, name) }
+            }
+        }
+    }
+    val videoLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        uri?.let {
+            scope.launch {
+                copyToInternalStorage(context, it, date.toString(), AttachmentType.VIDEO)
+                    ?.let { (path, name) -> onAddAttachment(path, AttachmentType.VIDEO, name) }
+            }
+        }
+    }
+    val audioLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        uri?.let {
+            scope.launch {
+                copyToInternalStorage(context, it, date.toString(), AttachmentType.AUDIO)
+                    ?.let { (path, name) -> onAddAttachment(path, AttachmentType.AUDIO, name) }
+            }
+        }
+    }
+    val documentLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        uri?.let {
+            scope.launch {
+                copyToInternalStorage(context, it, date.toString(), AttachmentType.DOCUMENT)
+                    ?.let { (path, name) -> onAddAttachment(path, AttachmentType.DOCUMENT, name) }
+            }
+        }
     }
 
     ModalBottomSheet(
@@ -220,18 +293,64 @@ private fun NoteSheet(
             modifier = Modifier
                 .fillMaxWidth()
                 .navigationBarsPadding()
-                .padding(horizontal = 20.dp, vertical = 8.dp)
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 20.dp)
         ) {
-            Text(text = date.format(DATE_LABEL_FORMAT), color = ZincTextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Medium)
-            Text(text = "Note", color = ZincTextMuted, fontSize = 12.sp)
-            Spacer(Modifier.height(16.dp))
+            // ── Header ───────────────────────────────────────────────────────────
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Remarks & Attachments",
+                        color = ZincTextPrimary,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        text = date.format(DATE_LABEL_FORMAT),
+                        color = ZincTextMuted,
+                        fontSize = 11.sp
+                    )
+                }
+                IconButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Close,
+                        contentDescription = "Close",
+                        tint = ZincTextMuted,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(18.dp))
+
+            // ── REMARK ───────────────────────────────────────────────────────────
+            Text(
+                text = "REMARK",
+                color = ZincTextMuted,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Medium,
+                letterSpacing = 1.sp
+            )
+            Spacer(Modifier.height(8.dp))
             OutlinedTextField(
                 value = text,
                 onValueChange = { text = it },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = 140.dp),
-                placeholder = { Text("Add a note for today...") },
+                    .heightIn(min = 100.dp),
+                placeholder = {
+                    Text(
+                        text = "Add a remark for today...",
+                        color = ZincTextMuted,
+                        fontSize = 14.sp
+                    )
+                },
                 colors = TextFieldDefaults.colors(
                     focusedContainerColor = ZincSurfaceVariant,
                     unfocusedContainerColor = ZincSurfaceVariant,
@@ -242,10 +361,232 @@ private fun NoteSheet(
                     cursorColor = AccentBlue,
                     focusedPlaceholderColor = ZincTextMuted,
                     unfocusedPlaceholderColor = ZincTextMuted
-                )
+                ),
+                shape = RoundedCornerShape(12.dp),
+                textStyle = TextStyle(fontSize = 14.sp, color = ZincTextPrimary)
             )
-            Spacer(Modifier.height(12.dp))
+
+            Spacer(Modifier.height(20.dp))
+            HorizontalDivider(color = ZincBorder, thickness = 1.dp)
+            Spacer(Modifier.height(16.dp))
+
+            // ── ATTACHMENTS ──────────────────────────────────────────────────────
+            Text(
+                text = "ATTACHMENTS",
+                color = ZincTextMuted,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Medium,
+                letterSpacing = 1.sp
+            )
+            Spacer(Modifier.height(10.dp))
+
+            // Four type-picker buttons in a uniform row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                AttachTypeButton(
+                    icon = Icons.Outlined.Image,
+                    label = "Image",
+                    tint = AccentBlue,
+                    modifier = Modifier.weight(1f),
+                    onClick = { imageLauncher.launch("image/*") }
+                )
+                AttachTypeButton(
+                    icon = Icons.Outlined.Videocam,
+                    label = "Video",
+                    tint = Color(0xFF9C6FE4),
+                    modifier = Modifier.weight(1f),
+                    onClick = { videoLauncher.launch("video/*") }
+                )
+                AttachTypeButton(
+                    icon = Icons.Outlined.Audiotrack,
+                    label = "Audio",
+                    tint = Color(0xFFE89D3A),
+                    modifier = Modifier.weight(1f),
+                    onClick = { audioLauncher.launch("audio/*") }
+                )
+                AttachTypeButton(
+                    icon = Icons.Outlined.Description,
+                    label = "Doc",
+                    tint = AccentEmerald,
+                    modifier = Modifier.weight(1f),
+                    onClick = { documentLauncher.launch("*/*") }
+                )
+            }
+
+            // Horizontally scrollable row of chips for every attached file
+            if (attachments.isNotEmpty()) {
+                Spacer(Modifier.height(12.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    attachments.forEach { attachment ->
+                        AttachmentChip(
+                            attachment = attachment,
+                            onRemove = { onRemoveAttachment(attachment.id) },
+                            onOpen = { openAttachment(context, attachment) }
+                        )
+                    }
+                }
+            }
         }
+    }
+}
+
+/** Outlined square button for selecting a file type. */
+@Composable
+private fun AttachTypeButton(
+    icon: ImageVector,
+    label: String,
+    tint: Color,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(10.dp))
+            .border(1.dp, ZincBorder, RoundedCornerShape(10.dp))
+            .background(ZincSurfaceVariant)
+            .clickable(onClick = onClick)
+            .padding(vertical = 12.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = label,
+                tint = tint,
+                modifier = Modifier.size(20.dp)
+            )
+            Text(
+                text = label,
+                color = ZincTextSecondary,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium
+            )
+        }
+    }
+}
+
+/** Compact, dismissible chip for a single attachment. Tap to open; × to remove. */
+@Composable
+private fun AttachmentChip(
+    attachment: DailyAttachment,
+    onRemove: () -> Unit,
+    onOpen: () -> Unit
+) {
+    val (icon, tint) = when (attachment.type) {
+        AttachmentType.IMAGE    -> Icons.Outlined.Image       to AccentBlue
+        AttachmentType.VIDEO    -> Icons.Outlined.Videocam    to Color(0xFF9C6FE4)
+        AttachmentType.AUDIO    -> Icons.Outlined.Audiotrack  to Color(0xFFE89D3A)
+        AttachmentType.DOCUMENT -> Icons.Outlined.Description to AccentEmerald
+    }
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(ZincSurfaceVariant)
+            .border(1.dp, ZincBorder, RoundedCornerShape(8.dp))
+            .clickable(onClick = onOpen)
+            .padding(start = 8.dp, top = 6.dp, bottom = 6.dp, end = 2.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = tint,
+            modifier = Modifier.size(14.dp)
+        )
+        Spacer(Modifier.width(6.dp))
+        Text(
+            text = attachment.displayName,
+            color = ZincTextPrimary,
+            fontSize = 12.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.widthIn(max = 130.dp)
+        )
+        Spacer(Modifier.width(2.dp))
+        IconButton(
+            onClick = onRemove,
+            modifier = Modifier.size(28.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Close,
+                contentDescription = "Remove attachment",
+                tint = ZincTextMuted,
+                modifier = Modifier.size(12.dp)
+            )
+        }
+    }
+}
+
+/**
+ * Copies a file from a system-picker content URI into app-internal storage.
+ * Returns (absolutePath, displayName) on success, or null if the copy fails.
+ *
+ * Running on [Dispatchers.IO] keeps the main thread free during the copy.
+ */
+private suspend fun copyToInternalStorage(
+    context: Context,
+    uri: Uri,
+    date: String,
+    @Suppress("UNUSED_PARAMETER") type: AttachmentType
+): Pair<String, String>? = withContext(Dispatchers.IO) {
+    try {
+        val cr = context.contentResolver
+        val displayName = cr.query(uri, arrayOf("_display_name"), null, null, null)
+            ?.use { cursor -> if (cursor.moveToFirst()) cursor.getString(0) else null }
+            ?: "file_${System.currentTimeMillis()}"
+        val ext = displayName.substringAfterLast('.', "").takeIf { it.isNotEmpty() }
+        val fileName = "${UUID.randomUUID()}${if (ext != null) ".$ext" else ""}"
+        val dir = File(context.filesDir, "attachments/$date").also { it.mkdirs() }
+        val dest = File(dir, fileName)
+        cr.openInputStream(uri)?.use { input ->
+            dest.outputStream().use { output -> input.copyTo(output) }
+        }
+        Pair(dest.absolutePath, displayName)
+    } catch (_: Exception) {
+        null
+    }
+}
+
+/**
+ * Opens an internal-storage attachment in an external viewer via [FileProvider].
+ * Silently no-ops if the file no longer exists or no app can handle the MIME type.
+ */
+private fun openAttachment(context: Context, attachment: DailyAttachment) {
+    try {
+        val file = File(attachment.filePath)
+        if (!file.exists()) return
+        val uri: Uri = FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.fileprovider",
+            file
+        )
+        val mime = when (attachment.type) {
+            AttachmentType.IMAGE    -> "image/*"
+            AttachmentType.VIDEO    -> "video/*"
+            AttachmentType.AUDIO    -> "audio/*"
+            AttachmentType.DOCUMENT -> "*/*"
+        }
+        context.startActivity(
+            Intent.createChooser(
+                Intent(Intent.ACTION_VIEW).apply {
+                    setDataAndType(uri, mime)
+                    flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
+                },
+                "Open with"
+            )
+        )
+    } catch (_: Exception) {
+        // No installed app can handle this file type - silently ignore.
     }
 }
 
@@ -262,9 +603,9 @@ private fun LockableBottomBar(
     val interactive = allComplete && !locked
 
     val label = when {
-        locked -> "Checklist Locked"
+        locked      -> "Checklist Locked"
         allComplete -> "Tap to Lock Checklist"
-        else -> "$completedCount/$totalCount completed"
+        else        -> "$completedCount/$totalCount completed"
     }
 
     // Sticky, edge-to-edge bottom bar. It installs its own no-op clickable so it always consumes
