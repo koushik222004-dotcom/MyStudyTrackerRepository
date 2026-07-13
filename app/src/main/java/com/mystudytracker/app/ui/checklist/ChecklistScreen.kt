@@ -880,8 +880,8 @@ private fun LockableBottomBar(
                     // SizeTransform is snapped: AnimatedContent animates its bounding box by
                     // default, which re-centers differently-sized content every frame and reads as
                     // a diagonal jump even with pure fades. Snapping kills that artifact entirely.
-                    fadeIn(tween(280, easing = FastOutSlowInEasing))
-                        .togetherWith(fadeOut(tween(200, easing = LinearOutSlowInEasing)))
+                    fadeIn(tween(260, delayMillis = 90, easing = FastOutSlowInEasing))
+                        .togetherWith(fadeOut(tween(180, easing = LinearOutSlowInEasing)))
                         .using(SizeTransform(clip = false, sizeAnimationSpec = { _, _ -> snap() }))
                 }
             ) { phase ->
