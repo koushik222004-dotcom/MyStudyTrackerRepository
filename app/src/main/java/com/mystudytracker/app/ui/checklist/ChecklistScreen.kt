@@ -184,7 +184,7 @@ fun ChecklistScreen(
         label = "checklistProgress"
     )
 
-    // Hardware/gesture back closes the panel instead of leaving the screen while it's open.
+    // Hardware/gesture back dismisses the lock dialog first, then the R&A panel.
     BackHandler(enabled = showLockDialog) { showLockDialog = false }
     BackHandler(enabled = sheetOpen) { sheetOpen = false }
 
@@ -301,6 +301,7 @@ fun ChecklistScreen(
         }
 
         // ── Lock confirmation dialog ────────────────────────────────────────────────────────
+        // Scrim — tapping outside the card dismisses the dialog with no action.
         AnimatedVisibility(
             visible = showLockDialog,
             enter = fadeIn(tween(180)),
@@ -317,7 +318,7 @@ fun ChecklistScreen(
                     ) { showLockDialog = false }
             )
         }
-
+        // Centered card — scales in from the middle of the screen.
         AnimatedVisibility(
             visible = showLockDialog,
             enter = fadeIn(tween(200)) + scaleIn(tween(200), initialScale = 0.88f),
@@ -338,11 +339,9 @@ fun ChecklistScreen(
 // ── Lock confirmation dialog ───────────────────────────────────────────────────────────────────
 
 /**
- * Centered overlay dialog that asks the user to confirm before permanently locking the day.
- * Styled to match the zinc dark theme — same surface color, border language, and corner radius
- * as the rest of the app. Tapping the scrim or pressing back also dismisses it (both handled
- * at the call site). The "Lock Day" button uses AccentEmerald to mirror the progress bar color,
- * signalling completion rather than danger.
+ * Centered card dialog asking the user to confirm before permanently locking the day.
+ * Styled with the same zinc surface, border, corner radius, and shadow language as the rest
+ * of the app. Cancel and Lock Day sit side-by-side at the bottom — equal width, compact height.
  */
 @Composable
 private fun LockConfirmDialog(
@@ -363,6 +362,7 @@ private fun LockConfirmDialog(
             .padding(horizontal = 24.dp, vertical = 28.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        // Icon badge
         Box(
             modifier = Modifier
                 .size(52.dp)
@@ -378,6 +378,7 @@ private fun LockConfirmDialog(
             )
         }
         Spacer(Modifier.height(18.dp))
+        // Title
         Text(
             text = "Lock this day?",
             color = ZincTextPrimary,
@@ -386,6 +387,7 @@ private fun LockConfirmDialog(
             textAlign = TextAlign.Center
         )
         Spacer(Modifier.height(8.dp))
+        // Description
         Text(
             text = "All tasks will be permanently frozen.\nThis cannot be undone.",
             color = ZincTextSecondary,
@@ -394,6 +396,7 @@ private fun LockConfirmDialog(
             textAlign = TextAlign.Center
         )
         Spacer(Modifier.height(24.dp))
+        // Buttons
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(10.dp)
