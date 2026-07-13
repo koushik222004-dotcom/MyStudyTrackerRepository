@@ -17,11 +17,15 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -866,19 +870,23 @@ private fun LockableBottomBar(
                 // independent of the progress bar and independent of the size/fade behavior below.
                 contentAlignment = Alignment.Center,
                 transitionSpec = {
-                    // Absolute basic micro-transition: a plain in-place crossfade, nothing else.
-                    // No slide, no scale, no drift - the old phase just dissolves into the new one
-                    // at the same position, quickly enough to read as a small, deliberate touch
-                    // rather than an animation you notice.
+                    // Directional fade-slide: the incoming phase rises up from a small offset
+                    // while fading in (FastOutSlowIn — quick start, smooth landing), and the
+                    // outgoing phase drifts upward while fading out (LinearOutSlowIn — steady
+                    // exit with a soft deceleration at the end). The 20px drift is subtle enough
+                    // to stay invisible as a "slide" but enough to give the swap a clear sense
+                    // of direction and momentum — what makes it feel smooth vs a flat dissolve.
                     //
-                    // AnimatedContent's default SizeTransform animates the container's bounding
-                    // box between the old and new phase's size. Since phases render very
-                    // differently-sized content ("142/150 completed" vs "Are you sure? Yes No")
-                    // and the box centers its content, that animated resize recenters the text
-                    // every frame - which reads as a diagonal slide even though enter/exit here
-                    // are pure fades. Snapping the size instantly (no interpolation) removes that
-                    // recentering artifact so only the fade remains visible.
-                    fadeIn(tween(150)).togetherWith(fadeOut(tween(150)))
+                    // SizeTransform is still snapped: AnimatedContent animates its bounding box
+                    // between phases by default, which re-centers content every frame and reads
+                    // as a diagonal jump. Snapping the size change away keeps the movement
+                    // purely vertical and clean.
+                    (fadeIn(tween(250, easing = FastOutSlowInEasing)) +
+                        slideInVertically(tween(250, easing = FastOutSlowInEasing)) { 20 })
+                        .togetherWith(
+                            fadeOut(tween(180, easing = LinearOutSlowInEasing)) +
+                                slideOutVertically(tween(180, easing = LinearOutSlowInEasing)) { -20 }
+                        )
                         .using(SizeTransform(clip = false, sizeAnimationSpec = { _, _ -> snap() }))
                 }
             ) { phase ->
