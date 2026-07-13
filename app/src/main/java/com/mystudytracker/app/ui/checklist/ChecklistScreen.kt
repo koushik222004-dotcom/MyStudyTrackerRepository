@@ -13,12 +13,12 @@ import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
@@ -88,7 +88,9 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -104,6 +106,7 @@ import com.mystudytracker.app.data.TaskCatalog
 import com.mystudytracker.app.data.TaskItem
 import com.mystudytracker.app.ui.theme.AccentBlue
 import com.mystudytracker.app.ui.theme.AccentEmerald
+import com.mystudytracker.app.ui.theme.AccentRed
 import com.mystudytracker.app.ui.theme.ZincBackground
 import com.mystudytracker.app.ui.theme.ZincBorder
 import com.mystudytracker.app.ui.theme.ZincSurface
@@ -120,9 +123,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalFocusManager
-import com.mystudytracker.app.ui.theme.AccentRed
 
 // ── MIME support list ──────────────────────────────────────────────────────────────────────────
 // Broad prefix matches cover all image/video/audio sub-formats automatically. DOCUMENT covers
