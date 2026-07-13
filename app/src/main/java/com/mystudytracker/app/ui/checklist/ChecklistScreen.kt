@@ -219,7 +219,7 @@ fun ChecklistScreen(
                 modifier = Modifier
                     .padding(horizontal = 16.dp)
                     .alpha(if (locked) 0.6f else 1f),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 TaskCatalog.sections.forEach { section ->
                     SectionCard(
@@ -271,6 +271,11 @@ fun ChecklistScreen(
 private fun RemarkAttachmentBadge(active: Boolean, onClick: () -> Unit) {
     Box(
         modifier = Modifier
+            // Mirrors the back arrow's built-in inset: that IconButton's 24dp glyph sits centered
+            // in a 48dp touch target, so its visible edge is 12dp further in than this pill's box
+            // would otherwise be. This padding pulls the pill in by the same amount so both
+            // visible edges sit equally far from the screen edge.
+            .padding(end = 12.dp)
             .clip(RoundedCornerShape(8.dp))
             .background(if (active) AccentBlue.copy(alpha = 0.14f) else ZincSurfaceVariant)
             .border(
@@ -760,7 +765,7 @@ private fun SectionCard(
             .clip(RoundedCornerShape(20.dp))
             .background(ZincSurface)
             .border(1.dp, ZincBorder, RoundedCornerShape(20.dp))
-            .padding(horizontal = 16.dp, vertical = 16.dp)
+            .padding(horizontal = 14.dp, vertical = 14.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(
@@ -780,7 +785,7 @@ private fun SectionCard(
 
         val ruleText = section.ruleProvider?.invoke(date)
         if (ruleText != null) {
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(6.dp))
             Box(
                 modifier = Modifier
                     .padding(start = 26.dp)
@@ -795,9 +800,9 @@ private fun SectionCard(
                     fontWeight = FontWeight.Medium
                 )
             }
-            Spacer(Modifier.height(6.dp))
-        } else {
             Spacer(Modifier.height(4.dp))
+        } else {
+            Spacer(Modifier.height(3.dp))
         }
 
         Column(modifier = Modifier.padding(start = 26.dp)) {
@@ -839,7 +844,7 @@ private fun TaskRow(task: TaskItem, checked: Boolean, locked: Boolean, onToggle:
             .fillMaxWidth()
             .clip(RoundedCornerShape(10.dp))
             .clickable(enabled = !locked) { onToggle() }
-            .padding(vertical = 8.dp),
+            .padding(vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
