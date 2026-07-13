@@ -110,6 +110,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalConfiguration
+import com.mystudytracker.app.ui.theme.AccentRed
 
 // ── MIME support list ──────────────────────────────────────────────────────────────────────────
 // Broad prefix matches cover all image/video/audio sub-formats automatically. DOCUMENT covers
@@ -402,6 +407,11 @@ private fun RemarkAttachmentsPanel(
         }
     }
 
+    // 20 % of screen height, clamped to [80 dp, 180 dp] so the field scales
+    // proportionally on every device — small phones, normal, and large.
+    val remarkFieldMaxHeight = (LocalConfiguration.current.screenHeightDp * 0.20f).dp
+        .coerceIn(80.dp, 180.dp)
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -409,11 +419,20 @@ private fun RemarkAttachmentsPanel(
             .shadow(elevation = 24.dp, shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
             .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
             .background(ZincSurface)
-            .border(
-                width = 1.dp,
-                color = ZincBorder,
-                shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
-            )
+            .drawBehind {
+                // Draw left side, top, and right side only — no bottom line.
+                // The .clip() above rounds the top corners so the stroke follows
+                // the panel shape naturally without any manual arc math.
+                val strokeWidth = 1.dp.toPx()
+                val half = strokeWidth / 2f
+                val path = Path().apply {
+                    moveTo(half, size.height)
+                    lineTo(half, half)
+                    lineTo(size.width - half, half)
+                    lineTo(size.width - half, size.height)
+                }
+                drawPath(path = path, color = ZincBorder, style = Stroke(width = strokeWidth))
+            }
             // Swallow taps so they don't fall through to the scrim behind this panel and dismiss it.
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
@@ -471,7 +490,8 @@ private fun RemarkAttachmentsPanel(
                 onValueChange = { text = it },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = 100.dp),
+                    .heightIn(min = 80.dp, max = remarkFieldMaxHeight),
+                maxLines = Int.MAX_VALUE,
                 placeholder = {
                     Text(
                         text = "Add a remark for today...",
@@ -591,7 +611,11 @@ private fun RemarkAttachmentsPanel(
 
 // ── Attachment chip ────────────────────────────────────────────────────────────────────────────
 
-/** Compact dismissible chip for one attachment. Tap to open in system viewer; × to delete. */
+/**
+ * Compact dismissible chip for one attachment. Tap to open in the system viewer.
+ * Tapping × morphs the chip inline via AnimatedContent to a 'Delete?' confirmation
+ * row with a red ✓ (confirm) and × (cancel). Cancelling reverts with no side effects.
+ */
 @Composable
 private fun AttachmentChip(
     attachment: DailyAttachment,
@@ -604,41 +628,77 @@ private fun AttachmentChip(
         AttachmentType.AUDIO    -> Icons.Outlined.Audiotrack  to Color(0xFFE89D3A)
         AttachmentType.DOCUMENT -> Icons.Outlined.Description to AccentEmerald
     }
-    Row(
-        modifier = Modifier
-            .clip(RoundedCornerShape(8.dp))
-            .background(ZincSurfaceVariant)
-            .border(1.dp, ZincBorder, RoundedCornerShape(8.dp))
-            .clickable(onClick = onOpen)
-            .padding(start = 8.dp, top = 6.dp, bottom = 6.dp, end = 2.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = tint,
-            modifier = Modifier.size(14.dp)
-        )
-        Spacer(Modifier.width(6.dp))
-        Text(
-            text = attachment.displayName,
-            color = ZincTextPrimary,
-            fontSize = 12.sp,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.widthIn(max = 130.dp)
-        )
-        Spacer(Modifier.width(2.dp))
-        IconButton(
-            onClick = onRemove,
-            modifier = Modifier.size(28.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Close,
-                contentDescription = "Remove attachment",
-                tint = ZincTextMuted,
-                modifier = Modifier.size(12.dp)
-            )
+    var confirmingDelete by remember { mutableStateOf(false) }
+
+    AnimatedContent(targetState = confirmingDelete, label = "chipDeleteConfirm") { confirming ->
+        if (confirming) {
+            // ── Confirmation state ──────────────────────────────────────────
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(ZincSurfaceVariant)
+                    .border(1.dp, AccentRed.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                    .padding(start = 10.dp, top = 6.dp, bottom = 6.dp, end = 2.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(text = "Delete?", color = ZincTextSecondary, fontSize = 12.sp)
+                Spacer(Modifier.width(4.dp))
+                IconButton(onClick = onRemove, modifier = Modifier.size(28.dp)) {
+                    Icon(
+                        imageVector = Icons.Filled.Check,
+                        contentDescription = "Confirm delete",
+                        tint = AccentRed,
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
+                IconButton(onClick = { confirmingDelete = false }, modifier = Modifier.size(28.dp)) {
+                    Icon(
+                        imageVector = Icons.Filled.Close,
+                        contentDescription = "Cancel",
+                        tint = ZincTextMuted,
+                        modifier = Modifier.size(12.dp)
+                    )
+                }
+            }
+        } else {
+            // ── Normal state ────────────────────────────────────────────────
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(ZincSurfaceVariant)
+                    .border(1.dp, ZincBorder, RoundedCornerShape(8.dp))
+                    .clickable(onClick = onOpen)
+                    .padding(start = 8.dp, top = 6.dp, bottom = 6.dp, end = 2.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = tint,
+                    modifier = Modifier.size(14.dp)
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    text = attachment.displayName,
+                    color = ZincTextPrimary,
+                    fontSize = 12.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.widthIn(max = 130.dp)
+                )
+                Spacer(Modifier.width(2.dp))
+                IconButton(
+                    onClick = { confirmingDelete = true },
+                    modifier = Modifier.size(28.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Close,
+                        contentDescription = "Remove attachment",
+                        tint = ZincTextMuted,
+                        modifier = Modifier.size(12.dp)
+                    )
+                }
+            }
         }
     }
 }
