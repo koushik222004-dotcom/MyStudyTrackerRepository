@@ -8,6 +8,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.Animatable
@@ -62,12 +63,14 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -374,6 +377,16 @@ private fun RemarkAttachmentsPanel(
     LaunchedEffect(text) {
         delay(400)
         onSaveNote(text)
+    }
+
+    // Eager flush on dismiss - covers the case where the panel is closed within the 400 ms
+    // debounce window and the latest edit would otherwise be silently discarded.
+    // rememberUpdatedState ensures onDispose always captures the current text value, not the
+    // one from the first composition.
+    val currentText by rememberUpdatedState(text)
+    val currentOnSaveNote by rememberUpdatedState(onSaveNote)
+    DisposableEffect(Unit) {
+        onDispose { currentOnSaveNote(currentText) }
     }
 
     // Error banner auto-dismisses after 3 seconds so the user doesn't have to manually clear it.
@@ -692,7 +705,7 @@ private suspend fun copyToInternalStorage(
     context: Context,
     uri: Uri,
     date: String,
-    @Suppress("UNUSED_PARAMETER") type: AttachmentType
+    type: AttachmentType
 ): Pair<String, String>? = withContext(Dispatchers.IO) {
     try {
         val cr = context.contentResolver
@@ -701,7 +714,9 @@ private suspend fun copyToInternalStorage(
             ?: "file_${System.currentTimeMillis()}"
         val ext = displayName.substringAfterLast('.', "").takeIf { it.isNotEmpty() }
         val fileName = "${UUID.randomUUID()}${if (ext != null) ".$ext" else ""}"
-        val dir = File(context.filesDir, "attachments/$date").also { it.mkdirs() }
+        // Files are stored under attachments/<date>/<type>/ so the folder stays organised even
+        // when a single day has a mix of images, videos, audio, and documents.
+        val dir = File(context.filesDir, "attachments/$date/${type.name.lowercase()}").also { it.mkdirs() }
         val dest = File(dir, fileName)
         cr.openInputStream(uri)?.use { input ->
             dest.outputStream().use { output -> input.copyTo(output) }
@@ -773,6 +788,10 @@ private fun LockableBottomBar(
     }
 
     val absorbTouches = remember { MutableInteractionSource() }
+    // Hoisted above AnimatedContent so they survive transitions — creating them inside the
+    // AnimatedContent lambda causes new instances to be allocated on every phase change.
+    val yesInteraction = remember { MutableInteractionSource() }
+    val noInteraction  = remember { MutableInteractionSource() }
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -857,7 +876,7 @@ private fun LockableBottomBar(
                                 .clip(RoundedCornerShape(8.dp))
                                 .background(AccentEmerald)
                                 .clickable(
-                                    interactionSource = remember { MutableInteractionSource() },
+                                    interactionSource = yesInteraction,
                                     indication = null
                                 ) { confirming = false; onLock() }
                                 .padding(horizontal = 14.dp, vertical = 6.dp),
@@ -876,7 +895,7 @@ private fun LockableBottomBar(
                                 .clip(RoundedCornerShape(8.dp))
                                 .background(ZincSurfaceVariant)
                                 .clickable(
-                                    interactionSource = remember { MutableInteractionSource() },
+                                    interactionSource = noInteraction,
                                     indication = null
                                 ) { confirming = false }
                                 .padding(horizontal = 14.dp, vertical = 6.dp),
@@ -1000,11 +1019,6 @@ private fun TaskRow(task: TaskItem, checked: Boolean, locked: Boolean, onToggle:
         }
     }
 
-    val strikeAlpha by animateFloatAsState(
-        targetValue = if (checked) 1f else 0f,
-        animationSpec = tween(200),
-        label = "strikeAlpha"
-    )
     val labelColor by animateColorAsState(
         targetValue = if (checked) ZincTextMuted else ZincTextPrimary,
         animationSpec = tween(200),
@@ -1042,19 +1056,19 @@ private fun TaskRow(task: TaskItem, checked: Boolean, locked: Boolean, onToggle:
             }
         }
         Spacer(Modifier.width(12.dp))
-        Box {
+        // Crossfade between plain and struck-through text: at rest only one Text node exists,
+        // vs the previous Box approach which always kept both in the tree (50 extra nodes for
+        // 25 tasks). Smooth fade still provided by Crossfade's animated alpha transition.
+        Crossfade(
+            targetState = checked,
+            animationSpec = tween(200),
+            label = "taskStrike"
+        ) { isChecked ->
             Text(
                 text = task.label,
                 color = labelColor,
                 fontSize = 15.sp,
-                modifier = Modifier.alpha(1f - strikeAlpha)
-            )
-            Text(
-                text = task.label,
-                color = labelColor,
-                fontSize = 15.sp,
-                textDecoration = TextDecoration.LineThrough,
-                modifier = Modifier.alpha(strikeAlpha)
+                textDecoration = if (isChecked) TextDecoration.LineThrough else TextDecoration.None
             )
         }
     }
