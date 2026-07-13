@@ -5,6 +5,7 @@ import androidx.compose.material.icons.automirrored.outlined.Assignment
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.EditNote
 import androidx.compose.material.icons.outlined.FactCheck
+import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.MenuBook
 import androidx.compose.material.icons.outlined.NightsStay
 import androidx.compose.material.icons.outlined.TrackChanges
@@ -30,9 +31,10 @@ data class SectionDefinition(
 )
 
 /**
- * The fixed catalog of 9 sections / 25 daily tasks for NEET 2027 prep.
- * This list is the single source of truth for both the checklist UI and the
- * Room entity mapping in [DailyProgress] - keep them in sync if this ever changes.
+ * The fixed catalog of sections/tasks for NEET 2027 prep, shown in this exact order on the
+ * checklist screen. This list is the single source of truth for the checklist UI; the Room
+ * entity mapping in [DailyProgress] (columns + toTaskMap/fromTaskMap) must stay in sync with it -
+ * adding, removing, or renaming a task key here requires a matching schema migration.
  */
 object TaskCatalog {
 
@@ -87,6 +89,13 @@ object TaskCatalog {
             ruleProvider = { "Today's Lecture" }
         ),
         SectionDefinition(
+            key = "homework",
+            title = "Homework",
+            icon = Icons.Outlined.Home,
+            iconTint = Color(0xFFF472B6),
+            tasks = listOf(TaskItem("physics", "Physics"), TaskItem("chemistry", "Chemistry"), TaskItem("biology", "Biology"))
+        ),
+        SectionDefinition(
             key = "practice",
             title = "Practice",
             icon = Icons.Outlined.TrackChanges,
@@ -96,10 +105,13 @@ object TaskCatalog {
         ),
         SectionDefinition(
             key = "ncert",
-            title = "NCERT Reading",
+            title = "Reading",
             icon = Icons.Outlined.MenuBook,
             iconTint = Color(0xFFA3E635),
-            tasks = listOf(TaskItem("reading", "NCERT Reading"))
+            tasks = listOf(TaskItem("reading", "Reading")),
+            // Same scope rule as Practice: current chapter on weekdays, current + previous chapter
+            // on alternate Sundays, all previous chapters covered on the other Sundays.
+            ruleProvider = { date -> DateRules.practiceRule(date) }
         ),
         SectionDefinition(
             key = "tests",
@@ -110,6 +122,6 @@ object TaskCatalog {
         )
     )
 
-    /** Fixed at 25 by design - one checkbox per NEET prep task, every day. */
+    /** One checkbox per NEET prep task, every day - derived from [sections] so it always matches. */
     val totalTaskCount: Int = sections.sumOf { it.tasks.size }
 }

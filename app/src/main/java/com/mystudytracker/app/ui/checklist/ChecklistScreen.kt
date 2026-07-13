@@ -3,6 +3,7 @@ package com.mystudytracker.app.ui.checklist
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
@@ -30,7 +31,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -57,12 +57,9 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SheetState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextFieldDefaults
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -77,7 +74,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
@@ -178,6 +177,9 @@ fun ChecklistScreen(
         label = "checklistProgress"
     )
 
+    // Hardware/gesture back closes the panel instead of leaving the screen while it's open.
+    BackHandler(enabled = sheetOpen) { sheetOpen = false }
+
     Box(modifier = Modifier.fillMaxSize().background(ZincBackground)) {
         Column(
             modifier = Modifier
@@ -242,20 +244,53 @@ fun ChecklistScreen(
             animatedProgressFraction = animatedProgressFraction,
             onLock = { viewModel.lockDay() }
         )
-    }
 
-    if (sheetOpen) {
-        RemarkAttachmentsSheet(
-            date = date,
-            initialNote = note,
-            attachments = attachments,
-            onDismiss = { sheetOpen = false },
-            onSaveNote = { text -> viewModel.saveNote(text) },
-            onAddAttachment = { filePath, type, displayName ->
-                viewModel.addAttachment(filePath, type, displayName)
-            },
-            onRemoveAttachment = { id -> viewModel.removeAttachment(id) }
-        )
+        // ── Remark & Attachments panel ──────────────────────────────────────────────────────
+        // A fixed-position overlay instead of a draggable bottom sheet: its bottom edge sits
+        // pinned exactly above the navigation bar (via navigationBarsPadding on the panel itself)
+        // for its entire lifetime, so there is no slide-through-the-nav-bar animation frame to get
+        // wrong in the first place. Opening/closing is a fade + gentle scale from that fixed
+        // anchor rather than a translation, which reads as a deliberate, professional micro-
+        // transition instead of a sheet "sliding" into system UI territory.
+        AnimatedVisibility(
+            visible = sheetOpen,
+            enter = fadeIn(tween(180)),
+            exit = fadeOut(tween(160)),
+            modifier = Modifier.fillMaxSize()
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.55f))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClickLabel = "Close",
+                        role = Role.Button
+                    ) { sheetOpen = false }
+            )
+        }
+
+        AnimatedVisibility(
+            visible = sheetOpen,
+            enter = fadeIn(tween(220)) +
+                scaleIn(tween(220), initialScale = 0.94f, transformOrigin = TransformOrigin(0.5f, 1f)),
+            exit = fadeOut(tween(160)) +
+                scaleOut(tween(160), targetScale = 0.96f, transformOrigin = TransformOrigin(0.5f, 1f)),
+            modifier = Modifier.align(Alignment.BottomCenter)
+        ) {
+            RemarkAttachmentsPanel(
+                date = date,
+                initialNote = note,
+                attachments = attachments,
+                onDismiss = { sheetOpen = false },
+                onSaveNote = { text -> viewModel.saveNote(text) },
+                onAddAttachment = { filePath, type, displayName ->
+                    viewModel.addAttachment(filePath, type, displayName)
+                },
+                onRemoveAttachment = { id -> viewModel.removeAttachment(id) }
+            )
+        }
     }
 }
 
@@ -301,28 +336,27 @@ private fun RemarkAttachmentBadge(active: Boolean, onClick: () -> Unit) {
     }
 }
 
-// ── Remark & Attachments sheet ─────────────────────────────────────────────────────────────────
+// ── Remark & Attachments panel ─────────────────────────────────────────────────────────────────
 
 /**
- * Combined bottom sheet for the day's free-form remark and file attachments.
+ * Fixed-position panel (not a draggable sheet) for the day's free-form remark and file
+ * attachments. It is composed directly in [ChecklistScreen]'s own overlay - not as a separate
+ * platform dialog/window - anchored to the bottom of the screen with [navigationBarsPadding], so
+ * its position never overlaps the system navigation bar at any point, including during its
+ * fade/scale open and close transitions (see the [AnimatedVisibility] calls at the call site).
  *
  * A single "Upload File" button opens the system file picker with no MIME pre-filter so users
  * see all their files naturally. After selection the MIME type is validated: images, videos,
  * audio, documents (PDF/Office/text), and archives are accepted; anything else - APKs,
  * executables, etc. - shows an inline "Unsupported file format" error that auto-dismisses.
  *
- * The remark autosaves on a 400ms debounce. The sheet disables Material3's built-in navigation-bar
- * inset handling ([WindowInsets] all zero) and applies [navigationBarsPadding] itself once, on the
- * content column, so there is a single, unambiguous source of the bottom safe-area gap. Previously
- * the sheet's own default inset and the manual padding could both apply during the slide-in/out
- * animation, letting a sliver of content show through behind the system navigation bar for a
- * frame. The content now always stops exactly at the navigation bar's top edge - the same
- * reference line as the bottom edge of the checklist's progress bar - both while animating and at
- * rest.
+ * The remark autosaves on a 400ms debounce. Height is capped with internal scrolling so a long
+ * remark plus many attachments never pushes the panel off-screen - it always stays reachable and
+ * dismissible. Closing works three ways: the header's close button, tapping the scrim behind the
+ * panel, or the device back button/gesture (see [BackHandler] at the call site).
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun RemarkAttachmentsSheet(
+private fun RemarkAttachmentsPanel(
     date: LocalDate,
     initialNote: String?,
     attachments: List<DailyAttachment>,
@@ -335,7 +369,6 @@ private fun RemarkAttachmentsSheet(
     val scope = rememberCoroutineScope()
     var text by remember { mutableStateOf(initialNote ?: "") }
     var fileError by remember { mutableStateOf<String?>(null) }
-    val sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     // Debounced autosave - waits for typing to pause before writing to the database.
     LaunchedEffect(text) {
@@ -369,53 +402,58 @@ private fun RemarkAttachmentsSheet(
         }
     }
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = ZincSurface,
-        // We apply navigationBarsPadding ourselves below - disabling the sheet's own inset
-        // handling avoids it being applied twice (once by the sheet, once by us), which is what
-        // let a frame of content show through past the navigation bar during the open/close
-        // slide animation.
-        contentWindowInsets = { WindowInsets(0, 0, 0, 0) }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(max = 560.dp)
+            .shadow(elevation = 24.dp, shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+            .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+            .background(ZincSurface)
+            .border(
+                width = 1.dp,
+                color = ZincBorder,
+                shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+            )
+            // Swallow taps so they don't fall through to the scrim behind this panel and dismiss it.
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+            ) {}
+            .verticalScroll(rememberScrollState())
+            .navigationBarsPadding()
+            .padding(horizontal = 20.dp)
+            .padding(top = 20.dp, bottom = 20.dp)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .padding(horizontal = 20.dp)
-                .padding(bottom = 20.dp)
+        // ── Header ──────────────────────────────────────────────────────────
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            // ── Header ──────────────────────────────────────────────────────────
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "Remark & Attachments",
-                        color = ZincTextPrimary,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Text(
-                        text = date.format(DATE_LABEL_FORMAT),
-                        color = ZincTextMuted,
-                        fontSize = 11.sp
-                    )
-                }
-                IconButton(
-                    onClick = onDismiss,
-                    modifier = Modifier.size(36.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Close,
-                        contentDescription = "Close",
-                        tint = ZincTextMuted,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Remark & Attachments",
+                    color = ZincTextPrimary,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = date.format(DATE_LABEL_FORMAT),
+                    color = ZincTextMuted,
+                    fontSize = 11.sp
+                )
             }
+            IconButton(
+                onClick = onDismiss,
+                modifier = Modifier.size(36.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Close,
+                    contentDescription = "Close",
+                    tint = ZincTextMuted,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+        }
 
             Spacer(Modifier.height(18.dp))
 
@@ -548,7 +586,6 @@ private fun RemarkAttachmentsSheet(
                     }
                 }
             }
-        }
     }
 }
 

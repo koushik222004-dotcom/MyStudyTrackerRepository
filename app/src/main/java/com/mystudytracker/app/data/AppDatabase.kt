@@ -9,7 +9,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [DailyProgress::class, DailyAttachment::class],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -52,6 +52,15 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** Adds the Homework section's 3 columns (Physics/Chemistry/Biology), default unchecked. */
+        private val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE daily_progress ADD COLUMN homeworkPhysics INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE daily_progress ADD COLUMN homeworkChemistry INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE daily_progress ADD COLUMN homeworkBiology INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -59,7 +68,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "mystudytracker.db"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                     .build()
                     .also { INSTANCE = it }
             }

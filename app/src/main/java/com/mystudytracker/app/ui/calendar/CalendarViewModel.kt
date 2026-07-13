@@ -22,7 +22,7 @@ class CalendarViewModel(
     private val dateIntegrityManager: DateIntegrityManager
 ) : ViewModel() {
 
-    /** ISO date string -> completed task count (0..25), for every day with any saved progress. */
+    /** ISO date string -> completed task count (0..TaskCatalog.totalTaskCount), for every day with any saved progress. */
     val completedCountByDate: StateFlow<Map<String, Int>> = repository.observeAll()
         .map { rows -> rows.associate { it.date to it.completedCount } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())

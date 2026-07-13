@@ -10,7 +10,7 @@ enum class DayStatus {
     FUTURE, // after today - locked, cannot be opened
     TODAY_INCOMPLETE,
     TODAY_COMPLETE,
-    GREEN, // past day, fully completed (25/25)
+    GREEN, // past day, fully completed (all tasks checked)
     YELLOW, // past day, partially completed
     RED // past day, nothing completed
 }

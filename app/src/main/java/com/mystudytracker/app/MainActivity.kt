@@ -3,7 +3,6 @@ package com.mystudytracker.app
 import android.content.res.Configuration
 import android.os.Bundle
 import androidx.activity.ComponentActivity
-import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
@@ -15,7 +14,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
@@ -34,20 +32,12 @@ import com.mystudytracker.app.ui.checklist.ChecklistScreen
 import com.mystudytracker.app.ui.checklist.ChecklistViewModel
 import com.mystudytracker.app.ui.splash.SplashScreen
 import com.mystudytracker.app.ui.theme.MyStudyTrackerTheme
-import com.mystudytracker.app.ui.theme.ZincBackground
 import java.time.LocalDate
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // The default edge-to-edge style uses a translucent scrim behind the system bars, which
-        // lets whatever is rendering underneath (a sliding sheet, the scrim, screen content) show
-        // through - that's the source of the "bleeding through the nav bar" look. Pinning both
-        // bars to a solid, always-opaque color matching the app's dark background means content
-        // can still be laid out edge-to-edge, but nothing is ever visible through the bar itself,
-        // during animations or otherwise.
-        val solidDarkBar = SystemBarStyle.dark(ZincBackground.toArgb())
-        enableEdgeToEdge(statusBarStyle = solidDarkBar, navigationBarStyle = solidDarkBar)
+        enableEdgeToEdge()
         val repository = (application as MyStudyTrackerApplication).repository
         setContent {
             MyStudyTrackerTheme {

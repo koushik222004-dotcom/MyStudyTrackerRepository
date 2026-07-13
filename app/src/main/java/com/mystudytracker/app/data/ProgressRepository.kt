@@ -46,12 +46,15 @@ class ProgressRepository(
         attachmentDao.insert(attachment)
 
     /**
-     * Removes the attachment record and deletes the backing file from internal storage. Safe to
-     * call if the file was already deleted externally.
+     * Deletes the backing file from internal storage, then removes the attachment record. Safe to
+     * call if the file was already deleted externally. File-then-row order (rather than the
+     * reverse) means a crash between the two steps leaves, at worst, a DB row pointing at a
+     * missing file - already handled gracefully by [com.mystudytracker.app.ui.checklist.openAttachment]'s
+     * existence check - instead of a silently orphaned file with no DB reference to ever clean it up.
      */
     suspend fun removeAttachment(id: Long) {
         val path = attachmentDao.getFilePath(id)
-        attachmentDao.deleteById(id)
         path?.let { File(it).delete() }
+        attachmentDao.deleteById(id)
     }
 }

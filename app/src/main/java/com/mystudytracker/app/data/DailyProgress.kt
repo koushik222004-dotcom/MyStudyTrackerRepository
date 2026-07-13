@@ -5,9 +5,9 @@ import androidx.room.PrimaryKey
 
 /**
  * One row per tracked day, keyed by ISO date string (e.g. "2026-07-08").
- * There is exactly one boolean column per fixed task (25 total, see [TaskCatalog]),
- * plus a denormalized [completedCount] so the calendar screen can color days
- * without re-reading and re-counting 25 booleans for every visible cell.
+ * There is exactly one boolean column per fixed task (see [TaskCatalog] for the current total),
+ * plus a denormalized [completedCount] so the calendar screen can color days without re-reading
+ * and re-counting every column for every visible cell.
  */
 @Entity(tableName = "daily_progress")
 data class DailyProgress(
@@ -38,6 +38,10 @@ data class DailyProgress(
     val postLectureChemistry: Boolean = false,
     val postLectureBiology: Boolean = false,
 
+    val homeworkPhysics: Boolean = false,
+    val homeworkChemistry: Boolean = false,
+    val homeworkBiology: Boolean = false,
+
     val practicePhysics: Boolean = false,
     val practiceChemistry: Boolean = false,
     val practiceBiology: Boolean = false,
@@ -55,7 +59,7 @@ data class DailyProgress(
     /** Free-form note for the day, edited independently of task state and lock status. */
     val note: String? = null
 ) {
-    /** Converts the 25 fixed columns into a generic "section.task" -> checked map used by the UI layer. */
+    /** Converts the fixed columns into a generic "section.task" -> checked map used by the UI layer. */
     fun toTaskMap(): Map<String, Boolean> = mapOf(
         "preLecture.physics" to preLecturePhysics,
         "preLecture.chemistry" to preLectureChemistry,
@@ -76,6 +80,9 @@ data class DailyProgress(
         "postLecture.physics" to postLecturePhysics,
         "postLecture.chemistry" to postLectureChemistry,
         "postLecture.biology" to postLectureBiology,
+        "homework.physics" to homeworkPhysics,
+        "homework.chemistry" to homeworkChemistry,
+        "homework.biology" to homeworkBiology,
         "practice.physics" to practicePhysics,
         "practice.chemistry" to practiceChemistry,
         "practice.biology" to practiceBiology,
@@ -109,6 +116,9 @@ data class DailyProgress(
                 postLecturePhysics = v("postLecture.physics"),
                 postLectureChemistry = v("postLecture.chemistry"),
                 postLectureBiology = v("postLecture.biology"),
+                homeworkPhysics = v("homework.physics"),
+                homeworkChemistry = v("homework.chemistry"),
+                homeworkBiology = v("homework.biology"),
                 practicePhysics = v("practice.physics"),
                 practiceChemistry = v("practice.chemistry"),
                 practiceBiology = v("practice.biology"),
