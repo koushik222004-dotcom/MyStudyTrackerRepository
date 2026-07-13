@@ -115,7 +115,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.focus.LocalFocusManager
+import androidx.compose.ui.platform.LocalFocusManager
 import com.mystudytracker.app.ui.theme.AccentRed
 
 // ── MIME support list ──────────────────────────────────────────────────────────────────────────
