@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -45,7 +46,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.outlined.Attachment
 import androidx.compose.material.icons.outlined.Audiotrack
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.ErrorOutline
@@ -80,6 +80,7 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
@@ -208,17 +209,10 @@ fun ChecklistScreen(
                     )
                     Text(text = "Daily checklist", color = ZincTextMuted, fontSize = 12.sp)
                 }
-                // Document-with-clip icon: conveys both the written remark (document body) and the
-                // file attachment (clip). Turns blue when either a remark or any attachment exists.
+                // "R&A" text badge instead of a generic icon - reads clearly at a glance as its own
+                // labelled control. Fills with the accent color once a remark or attachment exists.
                 val hasContent = !note.isNullOrBlank() || attachments.isNotEmpty()
-                IconButton(onClick = { sheetOpen = true }) {
-                    Icon(
-                        imageVector = Icons.Outlined.Attachment,
-                        contentDescription = if (hasContent) "Edit remarks & attachments" else "Add remarks or attachments",
-                        tint = if (hasContent) AccentBlue else ZincTextPrimary,
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
+                RemarkAttachmentBadge(active = hasContent, onClick = { sheetOpen = true })
             }
 
             Column(
@@ -251,7 +245,7 @@ fun ChecklistScreen(
     }
 
     if (sheetOpen) {
-        RemarksAttachmentsSheet(
+        RemarkAttachmentsSheet(
             date = date,
             initialNote = note,
             attachments = attachments,
@@ -265,7 +259,44 @@ fun ChecklistScreen(
     }
 }
 
-// ── Remarks & Attachments sheet ────────────────────────────────────────────────────────────────
+// ── Remark & Attachments badge ─────────────────────────────────────────────────────────────────
+
+/**
+ * Compact "R&A" badge button that opens the Remark & Attachments sheet. A rounded-rectangle text
+ * badge reads clearly as its own labelled control rather than relying on a generic icon glyph.
+ * Fills with the accent color and border once a remark or attachment exists, matching the accent
+ * language used elsewhere in the app (today's calendar highlight, focused text field border).
+ */
+@Composable
+private fun RemarkAttachmentBadge(active: Boolean, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(if (active) AccentBlue.copy(alpha = 0.14f) else ZincSurfaceVariant)
+            .border(
+                width = 1.dp,
+                color = if (active) AccentBlue else ZincBorder,
+                shape = RoundedCornerShape(8.dp)
+            )
+            .clickable(
+                onClickLabel = if (active) "Edit remark & attachments" else "Add remark or attachments",
+                role = Role.Button,
+                onClick = onClick
+            )
+            .padding(horizontal = 10.dp, vertical = 7.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = "R&A",
+            color = if (active) AccentBlue else ZincTextPrimary,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            letterSpacing = 0.4.sp
+        )
+    }
+}
+
+// ── Remark & Attachments sheet ─────────────────────────────────────────────────────────────────
 
 /**
  * Combined bottom sheet for the day's free-form remark and file attachments.
@@ -275,12 +306,18 @@ fun ChecklistScreen(
  * audio, documents (PDF/Office/text), and archives are accepted; anything else - APKs,
  * executables, etc. - shows an inline "Unsupported file format" error that auto-dismisses.
  *
- * The remark autosaves on a 400ms debounce. Sheet sits above the navigation bar via
- * [navigationBarsPadding], consistent with the bottom progress bar on the checklist screen.
+ * The remark autosaves on a 400ms debounce. The sheet disables Material3's built-in navigation-bar
+ * inset handling ([WindowInsets] all zero) and applies [navigationBarsPadding] itself once, on the
+ * content column, so there is a single, unambiguous source of the bottom safe-area gap. Previously
+ * the sheet's own default inset and the manual padding could both apply during the slide-in/out
+ * animation, letting a sliver of content show through behind the system navigation bar for a
+ * frame. The content now always stops exactly at the navigation bar's top edge - the same
+ * reference line as the bottom edge of the checklist's progress bar - both while animating and at
+ * rest.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun RemarksAttachmentsSheet(
+private fun RemarkAttachmentsSheet(
     date: LocalDate,
     initialNote: String?,
     attachments: List<DailyAttachment>,
@@ -330,7 +367,12 @@ private fun RemarksAttachmentsSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = ZincSurface
+        containerColor = ZincSurface,
+        // We apply navigationBarsPadding ourselves below - disabling the sheet's own inset
+        // handling avoids it being applied twice (once by the sheet, once by us), which is what
+        // let a frame of content show through past the navigation bar during the open/close
+        // slide animation.
+        windowInsets = WindowInsets(0, 0, 0, 0)
     ) {
         Column(
             modifier = Modifier
@@ -346,7 +388,7 @@ private fun RemarksAttachmentsSheet(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Remarks & Attachments",
+                        text = "Remark & Attachments",
                         color = ZincTextPrimary,
                         fontSize = 16.sp,
                         fontWeight = FontWeight.SemiBold
@@ -717,6 +759,7 @@ private fun SectionCard(
             .fillMaxWidth()
             .clip(RoundedCornerShape(20.dp))
             .background(ZincSurface)
+            .border(1.dp, ZincBorder, RoundedCornerShape(20.dp))
             .padding(horizontal = 16.dp, vertical = 16.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {

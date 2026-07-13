@@ -34,7 +34,7 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
-        /** Creates the daily_attachments table backing the Remarks & Attachments feature. */
+        /** Creates the daily_attachments table backing the Remark & Attachments feature. */
         private val MIGRATION_3_4 = object : Migration(3, 4) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(

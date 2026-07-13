@@ -370,6 +370,7 @@ private fun SyncPill(
         modifier = Modifier
             .clip(RoundedCornerShape(50))
             .background(ZincSurfaceVariant)
+            .border(1.dp, ZincBorder, RoundedCornerShape(50))
             .clickable(enabled = !syncing) { onClick() }
             .padding(horizontal = 14.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -457,6 +458,7 @@ private fun KeyCard() {
             .fillMaxWidth()
             .clip(RoundedCornerShape(20.dp))
             .background(ZincSurface)
+            .border(1.dp, ZincBorder, RoundedCornerShape(20.dp))
             .padding(16.dp)
     ) {
         Text(
