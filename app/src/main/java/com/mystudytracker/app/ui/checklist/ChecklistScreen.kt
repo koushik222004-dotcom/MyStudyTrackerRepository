@@ -17,8 +17,12 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.core.FastOutLinearInEasing
+import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -843,8 +847,14 @@ private fun LockableBottomBar(
                 targetState = barPhase,
                 label = "bottomBarPhase",
                 transitionSpec = {
-                    (fadeIn(tween(200)) + scaleIn(tween(200), initialScale = 0.92f))
-                        .togetherWith(fadeOut(tween(150)) + scaleOut(tween(150), targetScale = 0.96f))
+                    // Plain crossfade with a small vertical drift — no scale "pop", matches the
+                    // calmer, more deliberate feel of the transitions elsewhere in the app.
+                    (fadeIn(tween(220, easing = LinearOutSlowInEasing)) +
+                        slideInVertically(tween(220, easing = LinearOutSlowInEasing)) { height -> height / 6 })
+                        .togetherWith(
+                            fadeOut(tween(140, easing = FastOutLinearInEasing)) +
+                                slideOutVertically(tween(140, easing = FastOutLinearInEasing)) { height -> -height / 6 }
+                        )
                 }
             ) { phase ->
                 when (phase) {
