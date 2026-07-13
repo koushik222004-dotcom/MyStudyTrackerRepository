@@ -856,6 +856,15 @@ private fun LockableBottomBar(
             AnimatedContent(
                 targetState = barPhase,
                 label = "bottomBarPhase",
+                // AnimatedContent aligns its outgoing/incoming content independently of the
+                // parent Box it sits in - its own default is Alignment.TopStart. The parent Box
+                // above centers *this composable's footprint*, but without this, the phase text
+                // inside was being anchored top-start of that footprint, not centered. Since each
+                // phase's text/row has a different width and height, "top-start of a differently
+                // sized box" lands the text in a visibly different spot on every phase change,
+                // which is what actually produced the odd/misplaced-looking text transition -
+                // independent of the progress bar and independent of the size/fade behavior below.
+                contentAlignment = Alignment.Center,
                 transitionSpec = {
                     // Absolute basic micro-transition: a plain in-place crossfade, nothing else.
                     // No slide, no scale, no drift - the old phase just dissolves into the new one
