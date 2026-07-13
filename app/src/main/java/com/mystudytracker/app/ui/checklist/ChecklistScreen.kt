@@ -82,6 +82,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -172,6 +173,7 @@ fun ChecklistScreen(
     val note by viewModel.note.collectAsState()
     val attachments by viewModel.attachments.collectAsState()
     var sheetOpen by rememberSaveable { mutableStateOf(false) }
+    var showLockDialog by rememberSaveable { mutableStateOf(false) }
     val completedCount = checked.values.count { it }
     val totalCount = TaskCatalog.totalTaskCount
     val allComplete = totalCount > 0 && completedCount == totalCount
@@ -183,6 +185,7 @@ fun ChecklistScreen(
     )
 
     // Hardware/gesture back closes the panel instead of leaving the screen while it's open.
+    BackHandler(enabled = showLockDialog) { showLockDialog = false }
     BackHandler(enabled = sheetOpen) { sheetOpen = false }
 
     Box(modifier = Modifier.fillMaxSize().background(ZincBackground)) {
@@ -247,7 +250,7 @@ fun ChecklistScreen(
             allComplete = allComplete,
             locked = locked,
             animatedProgressFraction = animatedProgressFraction,
-            onLock = { viewModel.lockDay() }
+            onLock = { showLockDialog = true }
         )
 
         // ── Remark & Attachments panel ──────────────────────────────────────────────────────
@@ -295,6 +298,139 @@ fun ChecklistScreen(
                 },
                 onRemoveAttachment = { id -> viewModel.removeAttachment(id) }
             )
+        }
+
+        // ── Lock confirmation dialog ────────────────────────────────────────────────────────
+        AnimatedVisibility(
+            visible = showLockDialog,
+            enter = fadeIn(tween(180)),
+            exit = fadeOut(tween(160)),
+            modifier = Modifier.fillMaxSize()
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.6f))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) { showLockDialog = false }
+            )
+        }
+
+        AnimatedVisibility(
+            visible = showLockDialog,
+            enter = fadeIn(tween(200)) + scaleIn(tween(200), initialScale = 0.88f),
+            exit = fadeOut(tween(150)) + scaleOut(tween(150), targetScale = 0.92f),
+            modifier = Modifier.align(Alignment.Center)
+        ) {
+            LockConfirmDialog(
+                onDismiss = { showLockDialog = false },
+                onConfirm = {
+                    showLockDialog = false
+                    viewModel.lockDay()
+                }
+            )
+        }
+    }
+}
+
+// ── Lock confirmation dialog ───────────────────────────────────────────────────────────────────
+
+/**
+ * Centered overlay dialog that asks the user to confirm before permanently locking the day.
+ * Styled to match the zinc dark theme — same surface color, border language, and corner radius
+ * as the rest of the app. Tapping the scrim or pressing back also dismisses it (both handled
+ * at the call site). The "Lock Day" button uses AccentEmerald to mirror the progress bar color,
+ * signalling completion rather than danger.
+ */
+@Composable
+private fun LockConfirmDialog(
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .padding(horizontal = 32.dp)
+            .shadow(elevation = 32.dp, shape = RoundedCornerShape(24.dp))
+            .clip(RoundedCornerShape(24.dp))
+            .background(ZincSurface)
+            .border(1.dp, ZincBorder, RoundedCornerShape(24.dp))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+            ) {}
+            .padding(horizontal = 24.dp, vertical = 28.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            modifier = Modifier
+                .size(52.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(AccentEmerald.copy(alpha = 0.12f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.Lock,
+                contentDescription = null,
+                tint = AccentEmerald,
+                modifier = Modifier.size(24.dp)
+            )
+        }
+        Spacer(Modifier.height(18.dp))
+        Text(
+            text = "Lock this day?",
+            color = ZincTextPrimary,
+            fontSize = 17.sp,
+            fontWeight = FontWeight.SemiBold,
+            textAlign = TextAlign.Center
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            text = "All tasks will be permanently frozen.\nThis cannot be undone.",
+            color = ZincTextSecondary,
+            fontSize = 14.sp,
+            lineHeight = 20.sp,
+            textAlign = TextAlign.Center
+        )
+        Spacer(Modifier.height(24.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(ZincSurfaceVariant)
+                    .border(1.dp, ZincBorder, RoundedCornerShape(12.dp))
+                    .clickable(onClick = onDismiss)
+                    .padding(vertical = 13.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "Cancel",
+                    color = ZincTextPrimary,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(AccentEmerald)
+                    .clickable(onClick = onConfirm)
+                    .padding(vertical = 13.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "Lock Day",
+                    color = ZincBackground,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
         }
     }
 }
