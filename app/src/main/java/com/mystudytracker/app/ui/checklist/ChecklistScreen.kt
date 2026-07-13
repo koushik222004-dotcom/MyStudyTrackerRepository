@@ -67,6 +67,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -591,11 +592,17 @@ private fun RemarkAttachmentsPanel(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     attachments.forEach { attachment ->
-                        AttachmentChip(
-                            attachment = attachment,
-                            onRemove = { onRemoveAttachment(attachment.id) },
-                            onOpen = { openAttachment(context, attachment) }
-                        )
+                        // Keyed on the stable attachment id so each chip's remembered
+                        // confirmingDelete state stays bound to that attachment - without this,
+                        // removing an item mid-confirmation would leak "Delete?" onto whichever
+                        // attachment slides into the same list position afterward.
+                        key(attachment.id) {
+                            AttachmentChip(
+                                attachment = attachment,
+                                onRemove = { onRemoveAttachment(attachment.id) },
+                                onOpen = { openAttachment(context, attachment) }
+                            )
+                        }
                     }
                 }
             }
