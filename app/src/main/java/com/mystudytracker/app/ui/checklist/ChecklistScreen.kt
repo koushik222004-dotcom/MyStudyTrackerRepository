@@ -110,9 +110,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalConfiguration
 import com.mystudytracker.app.ui.theme.AccentRed
 
@@ -318,11 +315,8 @@ private fun RemarkAttachmentBadge(active: Boolean, onClick: () -> Unit) {
             .padding(end = 12.dp)
             .clip(RoundedCornerShape(8.dp))
             .background(if (active) AccentBlue.copy(alpha = 0.14f) else ZincSurfaceVariant)
-            .border(
-                width = 1.dp,
-                color = if (active) AccentBlue else ZincBorder,
-                shape = RoundedCornerShape(8.dp)
-            )
+            // Border only when active — accent signal that content already exists.
+            .let { if (active) it.border(1.dp, AccentBlue, RoundedCornerShape(8.dp)) else it }
             .clickable(
                 onClickLabel = if (active) "Edit remark & attachments" else "Add remark or attachments",
                 role = Role.Button,
@@ -416,23 +410,9 @@ private fun RemarkAttachmentsPanel(
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(max = 560.dp)
-            .shadow(elevation = 24.dp, shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+            .shadow(elevation = 32.dp, shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
             .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
             .background(ZincSurface)
-            .drawBehind {
-                // Draw left side, top, and right side only — no bottom line.
-                // The .clip() above rounds the top corners so the stroke follows
-                // the panel shape naturally without any manual arc math.
-                val strokeWidth = 1.dp.toPx()
-                val half = strokeWidth / 2f
-                val path = Path().apply {
-                    moveTo(half, size.height)
-                    lineTo(half, half)
-                    lineTo(size.width - half, half)
-                    lineTo(size.width - half, size.height)
-                }
-                drawPath(path = path, color = ZincBorder, style = Stroke(width = strokeWidth))
-            }
             // Swallow taps so they don't fall through to the scrim behind this panel and dismiss it.
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
@@ -533,7 +513,6 @@ private fun RemarkAttachmentsPanel(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
-                    .border(1.dp, ZincBorder, RoundedCornerShape(12.dp))
                     .background(ZincSurfaceVariant)
                     .clickable { fileLauncher.launch("*/*") }
                     .padding(horizontal = 16.dp, vertical = 14.dp),
@@ -666,7 +645,6 @@ private fun AttachmentChip(
                 modifier = Modifier
                     .clip(RoundedCornerShape(8.dp))
                     .background(ZincSurfaceVariant)
-                    .border(1.dp, ZincBorder, RoundedCornerShape(8.dp))
                     .clickable(onClick = onOpen)
                     .padding(start = 8.dp, top = 6.dp, bottom = 6.dp, end = 2.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -806,12 +784,19 @@ private fun LockableBottomBar(
                 }
             }
     ) {
-        // Progress track
+        // Hairline top separator — clean edge between scrollable content and the bar.
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(ZincBorder.copy(alpha = 0.5f))
+        )
+        // Progress track — ZincSurfaceVariant as the unfilled rail, AccentEmerald as fill.
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(3.dp)
-                .background(ZincBorder)
+                .background(ZincSurfaceVariant)
         ) {
             Box(
                 modifier = Modifier
@@ -889,7 +874,6 @@ private fun LockableBottomBar(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(8.dp))
                                 .background(ZincSurfaceVariant)
-                                .border(1.dp, ZincBorder, RoundedCornerShape(8.dp))
                                 .clickable(
                                     interactionSource = remember { MutableInteractionSource() },
                                     indication = null
@@ -949,9 +933,9 @@ private fun SectionCard(
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .shadow(elevation = 6.dp, shape = RoundedCornerShape(20.dp))
             .clip(RoundedCornerShape(20.dp))
             .background(ZincSurface)
-            .border(1.dp, ZincBorder, RoundedCornerShape(20.dp))
             .padding(horizontal = 14.dp, vertical = 14.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
