@@ -41,10 +41,21 @@ class ChecklistViewModel(
     val attachments: StateFlow<List<DailyAttachment>> = repository.observeAttachments(date)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    // Tracks the map most recently sent to the database, updated synchronously inside [toggle].
+    // [checked] only reflects a write once Room's Flow round-trips it back, which - while
+    // normally near-instant - is not instantaneous: two taps close enough together would
+    // otherwise both read the same stale `checked.value` as their base, so the second write could
+    // silently discard the first tap's change. Basing each new toggle on this in-memory map
+    // instead means every write always builds on every prior write, regardless of how fast Room's
+    // Flow keeps up.
+    private var pendingChecked: Map<String, Boolean>? = null
+
     fun toggle(taskId: String) {
         if (locked.value) return
-        val updated = checked.value.toMutableMap()
+        val base = pendingChecked ?: checked.value
+        val updated = base.toMutableMap()
         updated[taskId] = !(updated[taskId] ?: false)
+        pendingChecked = updated
         viewModelScope.launch {
             repository.saveDay(date, updated, locked = locked.value, note = note.value)
         }

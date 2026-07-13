@@ -17,12 +17,8 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.core.FastOutLinearInEasing
-import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -86,7 +82,6 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
@@ -475,154 +470,154 @@ private fun RemarkAttachmentsPanel(
             }
         }
 
-            Spacer(Modifier.height(18.dp))
+        Spacer(Modifier.height(18.dp))
 
-            // ── REMARK ──────────────────────────────────────────────────────────
-            Text(
-                text = "REMARK",
-                color = ZincTextMuted,
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Medium,
-                letterSpacing = 1.sp
-            )
-            Spacer(Modifier.height(8.dp))
-            OutlinedTextField(
-                value = text,
-                onValueChange = { text = it },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 80.dp, max = remarkFieldMaxHeight),
-                maxLines = Int.MAX_VALUE,
-                placeholder = {
-                    Text(
-                        text = "Add a remark for today...",
-                        color = ZincTextMuted,
-                        fontSize = 14.sp
-                    )
-                },
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = ZincSurfaceVariant,
-                    unfocusedContainerColor = ZincSurfaceVariant,
-                    focusedTextColor = ZincTextPrimary,
-                    unfocusedTextColor = ZincTextPrimary,
-                    focusedIndicatorColor = AccentBlue,
-                    unfocusedIndicatorColor = ZincBorder,
-                    cursorColor = AccentBlue,
-                    focusedPlaceholderColor = ZincTextMuted,
-                    unfocusedPlaceholderColor = ZincTextMuted
-                ),
-                shape = RoundedCornerShape(12.dp),
-                textStyle = TextStyle(fontSize = 14.sp, color = ZincTextPrimary)
-            )
-
-            Spacer(Modifier.height(20.dp))
-            HorizontalDivider(color = ZincBorder, thickness = 1.dp)
-            Spacer(Modifier.height(16.dp))
-
-            // ── ATTACHMENTS ─────────────────────────────────────────────────────
-            Text(
-                text = "ATTACHMENTS",
-                color = ZincTextMuted,
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Medium,
-                letterSpacing = 1.sp
-            )
-            Spacer(Modifier.height(10.dp))
-
-            // Single upload button - cleaner than 4 separate type buttons
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(ZincSurfaceVariant)
-                    .clickable {
-                        // Drop focus (and the keyboard) before handing off to the system picker.
-                        // Without this, focus silently returns to the remark field the moment the
-                        // picker closes, which reopens the keyboard and makes its cursor handle
-                        // jump for a frame while everything resyncs. Clearing focus up front means
-                        // that automatic refocus-and-reopen never happens - the field stays put,
-                        // unfocused, until the user deliberately taps back into it - so there's no
-                        // resize/refocus sequence left for the handle to glitch during. The panel's
-                        // own position and size are completely untouched by this.
-                        focusManager.clearFocus()
-                        fileLauncher.launch("*/*")
-                    }
-                    .padding(horizontal = 16.dp, vertical = 14.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.FileUpload,
-                    contentDescription = null,
-                    tint = AccentBlue,
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(Modifier.width(10.dp))
+        // ── REMARK ──────────────────────────────────────────────────────────
+        Text(
+            text = "REMARK",
+            color = ZincTextMuted,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Medium,
+            letterSpacing = 1.sp
+        )
+        Spacer(Modifier.height(8.dp))
+        OutlinedTextField(
+            value = text,
+            onValueChange = { text = it },
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 80.dp, max = remarkFieldMaxHeight),
+            maxLines = Int.MAX_VALUE,
+            placeholder = {
                 Text(
-                    text = "Upload File",
-                    color = ZincTextPrimary,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Medium
+                    text = "Add a remark for today...",
+                    color = ZincTextMuted,
+                    fontSize = 14.sp
                 )
-            }
+            },
+            colors = TextFieldDefaults.colors(
+                focusedContainerColor = ZincSurfaceVariant,
+                unfocusedContainerColor = ZincSurfaceVariant,
+                focusedTextColor = ZincTextPrimary,
+                unfocusedTextColor = ZincTextPrimary,
+                focusedIndicatorColor = AccentBlue,
+                unfocusedIndicatorColor = ZincBorder,
+                cursorColor = AccentBlue,
+                focusedPlaceholderColor = ZincTextMuted,
+                unfocusedPlaceholderColor = ZincTextMuted
+            ),
+            shape = RoundedCornerShape(12.dp),
+            textStyle = TextStyle(fontSize = 14.sp, color = ZincTextPrimary)
+        )
 
-            // Unsupported format error - slides in below the button, auto-dismisses after 3s
-            AnimatedVisibility(
-                visible = fileError != null,
-                enter = expandVertically(tween(200)) + fadeIn(tween(200)),
-                exit = shrinkVertically(tween(200)) + fadeOut(tween(200))
-            ) {
-                Column {
-                    Spacer(Modifier.height(8.dp))
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(Color(0x1FE05252))
-                            .padding(horizontal = 12.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.ErrorOutline,
-                            contentDescription = null,
-                            tint = Color(0xFFE05252),
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            text = fileError ?: "",
-                            color = Color(0xFFE05252),
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
+        Spacer(Modifier.height(20.dp))
+        HorizontalDivider(color = ZincBorder, thickness = 1.dp)
+        Spacer(Modifier.height(16.dp))
+
+        // ── ATTACHMENTS ─────────────────────────────────────────────────────
+        Text(
+            text = "ATTACHMENTS",
+            color = ZincTextMuted,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Medium,
+            letterSpacing = 1.sp
+        )
+        Spacer(Modifier.height(10.dp))
+
+        // Single upload button - cleaner than 4 separate type buttons
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(ZincSurfaceVariant)
+                .clickable {
+                    // Drop focus (and the keyboard) before handing off to the system picker.
+                    // Without this, focus silently returns to the remark field the moment the
+                    // picker closes, which reopens the keyboard and makes its cursor handle
+                    // jump for a frame while everything resyncs. Clearing focus up front means
+                    // that automatic refocus-and-reopen never happens - the field stays put,
+                    // unfocused, until the user deliberately taps back into it - so there's no
+                    // resize/refocus sequence left for the handle to glitch during. The panel's
+                    // own position and size are completely untouched by this.
+                    focusManager.clearFocus()
+                    fileLauncher.launch("*/*")
                 }
-            }
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.FileUpload,
+                contentDescription = null,
+                tint = AccentBlue,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(Modifier.width(10.dp))
+            Text(
+                text = "Upload File",
+                color = ZincTextPrimary,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Medium
+            )
+        }
 
-            // Horizontally scrollable row of chips for each attached file
-            if (attachments.isNotEmpty()) {
-                Spacer(Modifier.height(12.dp))
+        // Unsupported format error - slides in below the button, auto-dismisses after 3s
+        AnimatedVisibility(
+            visible = fileError != null,
+            enter = expandVertically(tween(200)) + fadeIn(tween(200)),
+            exit = shrinkVertically(tween(200)) + fadeOut(tween(200))
+        ) {
+            Column {
+                Spacer(Modifier.height(8.dp))
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color(0x1FE05252))
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    attachments.forEach { attachment ->
-                        // Keyed on the stable attachment id so each chip's remembered
-                        // confirmingDelete state stays bound to that attachment - without this,
-                        // removing an item mid-confirmation would leak "Delete?" onto whichever
-                        // attachment slides into the same list position afterward.
-                        key(attachment.id) {
-                            AttachmentChip(
-                                attachment = attachment,
-                                onRemove = { onRemoveAttachment(attachment.id) },
-                                onOpen = { openAttachment(context, attachment) }
-                            )
-                        }
+                    Icon(
+                        imageVector = Icons.Outlined.ErrorOutline,
+                        contentDescription = null,
+                        tint = Color(0xFFE05252),
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = fileError ?: "",
+                        color = Color(0xFFE05252),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+        }
+
+        // Horizontally scrollable row of chips for each attached file
+        if (attachments.isNotEmpty()) {
+            Spacer(Modifier.height(12.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                attachments.forEach { attachment ->
+                    // Keyed on the stable attachment id so each chip's remembered
+                    // confirmingDelete state stays bound to that attachment - without this,
+                    // removing an item mid-confirmation would leak "Delete?" onto whichever
+                    // attachment slides into the same list position afterward.
+                    key(attachment.id) {
+                        AttachmentChip(
+                            attachment = attachment,
+                            onRemove = { onRemoveAttachment(attachment.id) },
+                            onOpen = { openAttachment(context, attachment) }
+                        )
                     }
                 }
             }
+        }
     }
 }
 
@@ -860,14 +855,11 @@ private fun LockableBottomBar(
                 targetState = barPhase,
                 label = "bottomBarPhase",
                 transitionSpec = {
-                    // Plain crossfade with a small vertical drift — no scale "pop", matches the
-                    // calmer, more deliberate feel of the transitions elsewhere in the app.
-                    (fadeIn(tween(220, easing = LinearOutSlowInEasing)) +
-                        slideInVertically(tween(220, easing = LinearOutSlowInEasing)) { height -> height / 6 })
-                        .togetherWith(
-                            fadeOut(tween(140, easing = FastOutLinearInEasing)) +
-                                slideOutVertically(tween(140, easing = FastOutLinearInEasing)) { height -> -height / 6 }
-                        )
+                    // Absolute basic micro-transition: a plain in-place crossfade, nothing else.
+                    // No slide, no scale, no drift - the old phase just dissolves into the new one
+                    // at the same position, quickly enough to read as a small, deliberate touch
+                    // rather than an animation you notice.
+                    fadeIn(tween(150)).togetherWith(fadeOut(tween(150)))
                 }
             ) { phase ->
                 when (phase) {
