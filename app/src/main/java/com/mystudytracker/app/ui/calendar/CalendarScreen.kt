@@ -49,6 +49,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -368,9 +369,9 @@ private fun SyncPill(
 
     Row(
         modifier = Modifier
+            .shadow(elevation = 4.dp, shape = RoundedCornerShape(50))
             .clip(RoundedCornerShape(50))
             .background(ZincSurfaceVariant)
-            .border(1.dp, ZincBorder, RoundedCornerShape(50))
             .clickable(enabled = !syncing) { onClick() }
             .padding(horizontal = 14.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -456,9 +457,9 @@ private fun KeyCard() {
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .shadow(elevation = 6.dp, shape = RoundedCornerShape(20.dp))
             .clip(RoundedCornerShape(20.dp))
             .background(ZincSurface)
-            .border(1.dp, ZincBorder, RoundedCornerShape(20.dp))
             .padding(16.dp)
     ) {
         Text(
