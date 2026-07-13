@@ -332,13 +332,24 @@ private fun SyncPill(
     lastSyncedLabel: String?,
     onClick: () -> Unit
 ) {
-    val infiniteTransition = rememberInfiniteTransition(label = "syncRotation")
-    val angle by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(tween(800, easing = LinearEasing), repeatMode = RepeatMode.Restart),
-        label = "syncAngle"
-    )
+    // The spinner rotation is only ever shown while `syncing` is true (see `rotating` below), but
+    // rememberInfiniteTransition subscribes to the frame clock and keeps recomposing this
+    // composable every frame for as long as it's alive - regardless of whether `rotating` is
+    // currently true. Gating its creation on `syncing` means the pill sits fully idle (zero
+    // per-frame work) the other ~99% of the time it's on screen, which matters for an app whose
+    // whole design point is a lightweight, offline-first, battery-friendly daily check-in.
+    val angle: Float = if (syncing) {
+        val infiniteTransition = rememberInfiniteTransition(label = "syncRotation")
+        val a by infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = 360f,
+            animationSpec = infiniteRepeatable(tween(800, easing = LinearEasing), repeatMode = RepeatMode.Restart),
+            label = "syncAngle"
+        )
+        a
+    } else {
+        0f
+    }
 
     // Failed and reboot-detected are deliberately different colors even though both are
     // "attention" states - red means the sync you just attempted failed outright, amber means the
