@@ -1143,10 +1143,10 @@ private fun SectionCard(
             thickness = 0.5.dp
         )
 
-        // Children — top padding only; bottom=0 so no section-card sliver shows when
-        // the last group is expanded (its children block ends flush with the card edge).
+        // Symmetric vertical padding so every item — including the last one — has equal
+        // breathing room inside the card. The 8 dp bottom matches the 8 dp top.
         Column(
-            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 8.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
             section.children.forEachIndexed { index, node ->
@@ -1232,12 +1232,15 @@ private fun GroupRow(
                 .padding(horizontal = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Title — takes remaining space, wraps if needed.
+            // Title — takes remaining space, always single-line so the fixed-height
+            // row is never pushed taller and text stays vertically centred.
             Text(
                 text = node.title,
                 color = ZincTextPrimary,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Normal,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f)
             )
             Spacer(Modifier.width(8.dp))
@@ -1409,7 +1412,8 @@ private fun LeafRow(
             .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Title — leading, with strikethrough when done
+        // Title — leading, with strikethrough when done. Single-line so the row
+        // height stays fixed at 52 dp and text is always vertically centred.
         Crossfade(
             targetState = done,
             animationSpec = tween(200),
@@ -1421,6 +1425,8 @@ private fun LeafRow(
                 color = labelColor,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Normal,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
                 textDecoration = if (isDone) TextDecoration.LineThrough else TextDecoration.None
             )
         }
