@@ -20,23 +20,23 @@ import java.time.LocalDate
  * A node in a section's task tree. The tree can nest to any depth - a [TaskLeaf] is an actual
  * checkable/quantity-trackable task; a [TaskGroup] is a purely organizational parent (e.g.
  * "Chemistry" grouping Physical/Organic/Inorganic) with no state of its own. Every parent's
- * on-screen state (checked/partial/empty, "doesn't apply") is always *derived* from its leaf
- * descendants - see [TaskCatalog.leafKeysUnder] - never stored independently. This keeps backlog
- * and progress math unambiguous: only leaves are ever counted.
+ * on-screen state (checked/partial/empty, N/A) is always *derived* from its leaf descendants -
+ * see [TaskCatalog.leafKeysUnder] - never stored independently. This keeps backlog and progress
+ * math unambiguous: only leaves are ever counted.
  */
 sealed interface CatalogNode {
     val key: String
     val title: String
 }
 
-/** An actual trackable task - supports done/pending, an optional quantity > 1, and "doesn't apply". */
+/** An actual trackable task - supports done/pending, an optional quantity > 1, and "Not Applicable". */
 data class TaskLeaf(
     override val key: String,
     override val title: String
 ) : CatalogNode
 
-/** A purely organizational grouping of child nodes. Long-press cascades "doesn't apply" to every
- *  leaf underneath; tap cascades check/uncheck. Never has its own stored state. */
+/** A purely organizational grouping of child nodes. Long-press cascades "Not Applicable" to every
+ *  leaf underneath; tap cascades check/uncheck via the checkbox. Never has its own stored state. */
 data class TaskGroup(
     override val key: String,
     override val title: String,
@@ -58,7 +58,7 @@ data class SectionDefinition(
  * The fixed catalog of sections/tasks for NEET 2027 prep, shown in this exact order on the
  * checklist screen. This is the single source of truth for the checklist UI *and* for every full
  * task key stored in [DailyTaskState] (a full key is the dot-joined path of node keys from section
- * down to leaf, e.g. "lectures.chemistry.organic" or "tests.partial.chemistryCombined.analysis").
+ * down to leaf, e.g. "lectures.chemistry.organic" or "tests.test.partial.physics").
  *
  * Because per-day state lives in a normalized table keyed by these path strings (see
  * [DailyTaskState]) rather than one fixed Room column per task, changing this catalog - adding,
@@ -87,22 +87,18 @@ object TaskCatalog {
         )
     )
 
-    /** One test type (e.g. "Physics", "Chemistry Combined") - always a Test + Analysis pair. */
-    private fun testType(key: String, title: String): TaskGroup =
-        TaskGroup(key, title, listOf(TaskLeaf("test", "Test"), TaskLeaf("analysis", "Analysis")))
-
-    /** The 8 test-type rows shared by both Partial and Full Syllabus test groups. "Combined" here
-     *  is a real, distinct exam type (questions drawn from the whole subject) - a sibling leaf-group,
-     *  not a parent of Physical/Organic/Inorganic or Botany/Zoology. */
-    private fun testTypeRows(): List<CatalogNode> = listOf(
-        testType("physics", "Physics"),
-        testType("physicalChemistry", "Physical Chemistry"),
-        testType("organicChemistry", "Organic Chemistry"),
-        testType("inorganicChemistry", "Inorganic Chemistry"),
-        testType("chemistryCombined", "Chemistry Combined"),
-        testType("botany", "Botany"),
-        testType("zoology", "Zoology"),
-        testType("biologyCombined", "Biology Combined")
+    /** 8 plain subject test leaves shared by both the Test and Test Analysis groups.
+     *  "Combined" here is a real, distinct exam type (questions drawn from the whole subject) -
+     *  a sibling leaf, not a parent of Physical/Organic/Inorganic or Botany/Zoology. */
+    private fun testSubjectLeaves(): List<CatalogNode> = listOf(
+        TaskLeaf("physics", "Physics"),
+        TaskLeaf("physicalChemistry", "Physical Chemistry"),
+        TaskLeaf("organicChemistry", "Organic Chemistry"),
+        TaskLeaf("inorganicChemistry", "Inorganic Chemistry"),
+        TaskLeaf("chemistryCombined", "Chemistry Combined"),
+        TaskLeaf("botany", "Botany"),
+        TaskLeaf("zoology", "Zoology"),
+        TaskLeaf("biologyCombined", "Biology Combined")
     )
 
     val sections: List<SectionDefinition> = listOf(
@@ -181,14 +177,26 @@ object TaskCatalog {
             icon = Icons.Outlined.FactCheck,
             iconTint = Color(0xFFE879F9),
             children = listOf(
-                TaskGroup("partial", "Partial Tests", testTypeRows()),
-                TaskGroup("full", "Full Syllabus Tests", testTypeRows()),
-                testType("combined", "All Subjects Combined Full Syllabus Test")
+                // Test and Test Analysis are sibling parents so they can be tracked separately.
+                TaskGroup(
+                    "test", "Test", listOf(
+                        TaskGroup("partial", "Partial Tests", testSubjectLeaves()),
+                        TaskGroup("full", "Full Syllabus Tests", testSubjectLeaves()),
+                        TaskLeaf("combined", "All Subjects Full Syllabus Test")
+                    )
+                ),
+                TaskGroup(
+                    "analysis", "Test Analysis", listOf(
+                        TaskGroup("partial", "Partial Tests", testSubjectLeaves()),
+                        TaskGroup("full", "Full Syllabus Tests", testSubjectLeaves()),
+                        TaskLeaf("combined", "All Subjects Full Syllabus Test")
+                    )
+                )
             )
         )
     )
 
-    /** Every leaf's full dot-joined key, e.g. "tests.partial.chemistryCombined.analysis". */
+    /** Every leaf's full dot-joined key, e.g. "tests.test.partial.physics". */
     val allLeafKeys: List<String> by lazy {
         sections.flatMap { section -> leafKeysUnder(section.children, section.key) }
     }
