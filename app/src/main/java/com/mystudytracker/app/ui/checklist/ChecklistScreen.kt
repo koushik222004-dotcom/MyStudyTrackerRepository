@@ -1124,16 +1124,15 @@ private fun SectionCard(
                     )
                 }
             }
-            // Checkbox — right-edge anchored; grows inward so its trailing edge never shifts.
+            // Checkbox — fixed 60dp box so its right edge matches group rows and leaf rows exactly.
             Box(
-                modifier = Modifier.widthIn(min = 52.dp),
+                modifier = Modifier.width(60.dp),
                 contentAlignment = Alignment.CenterEnd
             ) {
                 UnifiedCheckbox(
                     state = sectionState,
                     modifier = Modifier
                         .clickable(enabled = !locked) { actions.toggleGroup(sectionLeafKeys) }
-                        .padding(4.dp)
                 )
             }
         }
@@ -1144,9 +1143,10 @@ private fun SectionCard(
             thickness = 0.5.dp
         )
 
-        // Children
+        // Children — top padding only; bottom=0 so no section-card sliver shows when
+        // the last group is expanded (its children block ends flush with the card edge).
         Column(
-            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
             section.children.forEachIndexed { index, node ->
@@ -1251,43 +1251,53 @@ private fun GroupRow(
                     .rotate(chevronRotation)
             )
             Spacer(Modifier.width(6.dp))
-            // Checkbox — right-edge aligned with all other rows.
-            UnifiedCheckbox(
-                state = aggregateState(leafKeys, taskStates),
-                modifier = Modifier
-                    .clickable(enabled = !locked) { actions.toggleGroup(leafKeys) }
-                    .padding(4.dp)
-            )
+            // Checkbox — same fixed 60dp box as section header and leaf rows.
+            Box(
+                modifier = Modifier.width(60.dp),
+                contentAlignment = Alignment.CenterEnd
+            ) {
+                UnifiedCheckbox(
+                    state = aggregateState(leafKeys, taskStates),
+                    modifier = Modifier
+                        .clickable(enabled = !locked) { actions.toggleGroup(leafKeys) }
+                )
+            }
         }
 
-        // Children container — shaded background = child stack visual hierarchy
+        // Children container — no dark background so the group header reads as a sealed unit.
+        // A hairline at the top marks the boundary between the header and its children.
         AnimatedVisibility(
             visible = expanded,
             enter = expandVertically(tween(220, easing = FastOutSlowInEasing)) + fadeIn(tween(180)),
             exit = shrinkVertically(tween(190, easing = LinearOutSlowInEasing)) + fadeOut(tween(140))
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(childContainerColor(depth))
-                    .padding(vertical = 6.dp),
-                verticalArrangement = Arrangement.spacedBy(0.dp)
-            ) {
-                node.children.forEachIndexed { i, child ->
-                    NodeRow(
-                        node = child,
-                        pathPrefix = fullKey,
-                        depth = depth + 1,
-                        taskStates = taskStates,
-                        locked = locked,
-                        actions = actions
-                    )
-                    if (i < node.children.lastIndex) {
-                        HorizontalDivider(
-                            color = ZincBorder.copy(alpha = 0.3f),
-                            thickness = 0.5.dp,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 1.dp)
+            Column(modifier = Modifier.fillMaxWidth()) {
+                HorizontalDivider(
+                    color = ZincBorder.copy(alpha = 0.4f),
+                    thickness = 0.5.dp
+                )
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 6.dp),
+                    verticalArrangement = Arrangement.spacedBy(0.dp)
+                ) {
+                    node.children.forEachIndexed { i, child ->
+                        NodeRow(
+                            node = child,
+                            pathPrefix = fullKey,
+                            depth = depth + 1,
+                            taskStates = taskStates,
+                            locked = locked,
+                            actions = actions
                         )
+                        if (i < node.children.lastIndex) {
+                            HorizontalDivider(
+                                color = ZincBorder.copy(alpha = 0.3f),
+                                thickness = 0.5.dp,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 1.dp)
+                            )
+                        }
                     }
                 }
             }

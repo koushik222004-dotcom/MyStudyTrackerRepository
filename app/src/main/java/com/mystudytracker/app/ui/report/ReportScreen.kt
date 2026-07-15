@@ -297,14 +297,14 @@ private fun SectionBacklogCard(section: BacklogNode) {
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.weight(1f)
             )
-            PendingBadge(pendingUnits = section.pendingUnits)
-            Spacer(Modifier.width(8.dp))
             Icon(
                 imageVector = Icons.Filled.ChevronRight,
                 contentDescription = if (expanded) "Collapse" else "Expand",
                 tint = ZincTextMuted,
                 modifier = Modifier.size(16.dp).rotate(chevronRotation)
             )
+            Spacer(Modifier.width(8.dp))
+            PendingBadge(pendingUnits = section.pendingUnits)
         }
 
         AnimatedVisibility(
@@ -374,14 +374,14 @@ private fun BacklogNodeRow(
                 fontWeight = FontWeight.Normal,
                 modifier = Modifier.weight(1f)
             )
-            PendingBadge(pendingUnits = node.pendingUnits)
-            Spacer(Modifier.width(6.dp))
             Icon(
                 imageVector = Icons.Filled.ChevronRight,
                 contentDescription = if (expanded) "Collapse" else "Expand",
                 tint = ZincTextMuted,
                 modifier = Modifier.size(14.dp).rotate(chevronRotation)
             )
+            Spacer(Modifier.width(6.dp))
+            PendingBadge(pendingUnits = node.pendingUnits)
         }
 
         AnimatedVisibility(
@@ -392,7 +392,6 @@ private fun BacklogNodeRow(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 2.dp, bottom = 2.dp)
                     .background(
                         if (depth == 0) Color(0xFF27272A) else Color(0xFF1F1F22)
                     )
