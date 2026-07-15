@@ -384,7 +384,7 @@ private fun SectionBacklogCard(section: BacklogNode, onSelectLeaf: (LeafBacklog)
             Column {
                 HorizontalDivider(color = ZincBorder.copy(alpha = 0.4f), thickness = 0.5.dp)
                 Column(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
                     section.children.filter { it.pendingUnits > 0 }.forEachIndexed { i, child ->
@@ -393,7 +393,7 @@ private fun SectionBacklogCard(section: BacklogNode, onSelectLeaf: (LeafBacklog)
                             HorizontalDivider(
                                 color = ZincBorder.copy(alpha = 0.2f),
                                 thickness = 0.5.dp,
-                                modifier = Modifier.padding(vertical = 1.dp)
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 1.dp)
                             )
                         }
                     }
@@ -436,7 +436,7 @@ private fun BacklogNodeRow(
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(10.dp))
                 .clickable { expanded = !expanded }
-                .padding(vertical = 9.dp, horizontal = 4.dp),
+                .padding(vertical = 9.dp, horizontal = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
@@ -464,8 +464,7 @@ private fun BacklogNodeRow(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 2.dp, bottom = 4.dp)
-                    .clip(RoundedCornerShape(10.dp))
+                    .padding(top = 2.dp, bottom = 2.dp)
                     .background(
                         if (depth == 0) Color(0xFF27272A) else Color(0xFF1F1F22)
                     )
@@ -479,7 +478,7 @@ private fun BacklogNodeRow(
                         HorizontalDivider(
                             color = ZincBorder.copy(alpha = 0.25f),
                             thickness = 0.5.dp,
-                            modifier = Modifier.padding(vertical = 1.dp)
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 1.dp)
                         )
                     }
                 }
@@ -502,7 +501,7 @@ private fun LeafBacklogRow(
             .fillMaxWidth()
             .clip(RoundedCornerShape(10.dp))
             .clickable { onSelectLeaf(leaf) }
-            .padding(vertical = 9.dp, horizontal = 4.dp),
+            .padding(vertical = 9.dp, horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(

@@ -1145,7 +1145,7 @@ private fun SectionCard(
 
         // Children
         Column(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
             section.children.forEachIndexed { index, node ->
@@ -1155,7 +1155,7 @@ private fun SectionCard(
                     HorizontalDivider(
                         color = ZincBorder.copy(alpha = 0.25f),
                         thickness = 0.5.dp,
-                        modifier = Modifier.padding(vertical = 1.dp)
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 1.dp)
                     )
                 }
             }
@@ -1227,20 +1227,10 @@ private fun GroupRow(
                     onClick = { expanded = !expanded },
                     onLongClick = { actions.toggleGroupNotApplicable(leafKeys) }
                 )
-                .padding(vertical = 10.dp, horizontal = 4.dp),
+                .padding(vertical = 10.dp, horizontal = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Leading chevron indicates expand/collapse — anchored on the left so the title and
-            // checkbox positions are consistent across groups at every depth level.
-            Icon(
-                imageVector = Icons.Filled.ChevronRight,
-                contentDescription = if (expanded) "Collapse" else "Expand",
-                tint = ZincTextMuted,
-                modifier = Modifier
-                    .size(15.dp)
-                    .rotate(chevronRotation)
-            )
-            Spacer(Modifier.width(6.dp))
+            // Title starts at the same left edge as every leaf row — no leading chevron here.
             Text(
                 text = node.title,
                 color = ZincTextPrimary,
@@ -1249,8 +1239,7 @@ private fun GroupRow(
                 modifier = Modifier.weight(1f)
             )
             Spacer(Modifier.width(8.dp))
-            // Checkbox — right-edge anchored. Tap it to cascade check/uncheck independently
-            // from the expand/collapse tap on the row. Long-press (on Row above) cascades N/A.
+            // Checkbox — right-edge anchored, same position as leaf checkboxes.
             Box(
                 modifier = Modifier.widthIn(min = 52.dp),
                 contentAlignment = Alignment.CenterEnd
@@ -1262,6 +1251,17 @@ private fun GroupRow(
                         .padding(4.dp)
                 )
             }
+            // Trailing chevron after the checkbox — same total width (6+14=20dp) that leaf rows
+            // reserve as a trailing spacer, so both columns stay in the same vertical line.
+            Spacer(Modifier.width(6.dp))
+            Icon(
+                imageVector = Icons.Filled.ChevronRight,
+                contentDescription = if (expanded) "Collapse" else "Expand",
+                tint = ZincTextMuted,
+                modifier = Modifier
+                    .size(14.dp)
+                    .rotate(chevronRotation)
+            )
         }
 
         // Children container — shaded background = child stack visual hierarchy
@@ -1273,10 +1273,9 @@ private fun GroupRow(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 4.dp, bottom = 6.dp)
-                    .clip(RoundedCornerShape(12.dp))
+                    .padding(top = 2.dp, bottom = 2.dp)
                     .background(childContainerColor(depth))
-                    .padding(vertical = 8.dp),
+                    .padding(vertical = 6.dp),
                 verticalArrangement = Arrangement.spacedBy(0.dp)
             ) {
                 node.children.forEachIndexed { i, child ->
@@ -1292,7 +1291,7 @@ private fun GroupRow(
                         HorizontalDivider(
                             color = ZincBorder.copy(alpha = 0.3f),
                             thickness = 0.5.dp,
-                            modifier = Modifier.padding(vertical = 1.dp)
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 1.dp)
                         )
                     }
                 }
@@ -1405,7 +1404,7 @@ private fun LeafRow(
                 onClick = { actions.toggleLeaf(fullKey) },
                 onLongClick = { menuOpen = true }
             )
-            .padding(vertical = 9.dp, horizontal = 4.dp),
+            .padding(vertical = 9.dp, horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // Title — leading, with strikethrough when done
@@ -1488,6 +1487,9 @@ private fun LeafRow(
                 }
             }
         }
+        // 20dp trailing spacer = 6dp (spacer) + 14dp (chevron) used in GroupRow.
+        // This keeps the checkbox column of leaf rows in the same vertical line as group rows.
+        Spacer(Modifier.width(20.dp))
     }
 
     if (menuOpen) {
