@@ -152,9 +152,6 @@ class ProgressRepository(
         }
     }
 
-    suspend fun pendingDatesForTask(taskKey: String, throughDate: String): List<String> =
-        taskStateDao.pendingDatesForTask(taskKey, throughDate)
-
     // ── Attachments ────────────────────────────────────────────────────────────────
 
     fun observeAttachments(date: String): Flow<List<DailyAttachment>> =

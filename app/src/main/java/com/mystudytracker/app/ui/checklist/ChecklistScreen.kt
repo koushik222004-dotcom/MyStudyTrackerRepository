@@ -103,6 +103,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -1054,8 +1055,8 @@ private data class ChecklistActions(
 // Depth-based child container shading: each level gets a progressively darker surface so
 // nested stacks read as distinct without indentation lines or explicit connectors.
 private fun childContainerColor(depth: Int): Color = when (depth) {
-    0    -> Color(0xFF27272A) // ZincSurfaceVariant - first level children
-    else -> Color(0xFF1F1F22) // Slightly darker - deeper nesting
+    0    -> Color(0xFF131316) // Darker than section card for clear visual depth
+    else -> Color(0xFF0D0D0F) // Even darker for deeper nesting
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -1230,7 +1231,7 @@ private fun GroupRow(
                 .padding(vertical = 10.dp, horizontal = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Title starts at the same left edge as every leaf row — no leading chevron here.
+            // Title — takes remaining space, wraps if needed.
             Text(
                 text = node.title,
                 color = ZincTextPrimary,
@@ -1239,21 +1240,8 @@ private fun GroupRow(
                 modifier = Modifier.weight(1f)
             )
             Spacer(Modifier.width(8.dp))
-            // Checkbox — right-edge anchored, same position as leaf checkboxes.
-            Box(
-                modifier = Modifier.widthIn(min = 52.dp),
-                contentAlignment = Alignment.CenterEnd
-            ) {
-                UnifiedCheckbox(
-                    state = aggregateState(leafKeys, taskStates),
-                    modifier = Modifier
-                        .clickable(enabled = !locked) { actions.toggleGroup(leafKeys) }
-                        .padding(4.dp)
-                )
-            }
-            // Trailing chevron after the checkbox — same total width (6+14=20dp) that leaf rows
-            // reserve as a trailing spacer, so both columns stay in the same vertical line.
-            Spacer(Modifier.width(6.dp))
+            // Chevron sits LEFT of checkbox at a fixed gap so checkbox position
+            // never shifts regardless of checkbox content width.
             Icon(
                 imageVector = Icons.Filled.ChevronRight,
                 contentDescription = if (expanded) "Collapse" else "Expand",
@@ -1261,6 +1249,14 @@ private fun GroupRow(
                 modifier = Modifier
                     .size(14.dp)
                     .rotate(chevronRotation)
+            )
+            Spacer(Modifier.width(6.dp))
+            // Checkbox — right-edge aligned with all other rows.
+            UnifiedCheckbox(
+                state = aggregateState(leafKeys, taskStates),
+                modifier = Modifier
+                    .clickable(enabled = !locked) { actions.toggleGroup(leafKeys) }
+                    .padding(4.dp)
             )
         }
 
@@ -1273,7 +1269,6 @@ private fun GroupRow(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 2.dp, bottom = 2.dp)
                     .background(childContainerColor(depth))
                     .padding(vertical = 6.dp),
                 verticalArrangement = Arrangement.spacedBy(0.dp)
@@ -1426,70 +1421,77 @@ private fun LeafRow(
         // Checkbox — right-edge anchored via widthIn(min). The trailing edge stays pinned even
         // when content grows wide (e.g. "67/100"), which grows inward into the min-width box.
         // Tap area is the whole Row; this box is display-only.
+        // 20dp leading spacer = 14dp (chevron) + 6dp (gap) used in GroupRow.
+        // Aligns checkbox right-edges of leaf rows with those of group rows.
+        Spacer(Modifier.width(20.dp))
+        // Fixed-width checkbox area — right-edge always aligned; content scrolls
+        // horizontally if quantity text overflows (e.g. very large numbers).
         Box(
-            modifier = Modifier.widthIn(min = 52.dp),
+            modifier = Modifier.width(60.dp),
             contentAlignment = Alignment.CenterEnd
         ) {
-            when {
-                notApplicable -> Box(
-                    modifier = Modifier
-                        .height(22.dp)
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(ZincSurfaceVariant)
-                        .border(2.dp, ZincBorder.copy(alpha = 0.6f), RoundedCornerShape(6.dp))
-                        .padding(horizontal = 7.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "N/A",
-                        color = ZincTextMuted,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-                target > 1 -> Box(
-                    modifier = Modifier
-                        .height(22.dp)
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(if (done) AccentEmerald else ZincSurfaceVariant)
-                        .border(2.dp, if (done) AccentEmerald else ZincBorder, RoundedCornerShape(6.dp))
-                        .padding(horizontal = 7.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "$completed/$target",
-                        color = if (done) ZincBackground else ZincTextPrimary,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-                else -> Box(
-                    modifier = Modifier
-                        .size(22.dp)
-                        .scale(checkboxScale.value)
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(if (done) AccentEmerald else Color.Transparent)
-                        .border(2.dp, if (done) AccentEmerald else ZincBorder, RoundedCornerShape(6.dp)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    androidx.compose.animation.AnimatedVisibility(
-                        visible = done,
-                        enter = fadeIn(tween(120)) + scaleIn(tween(120), initialScale = 0.6f),
-                        exit = fadeOut(tween(80)) + scaleOut(tween(80), targetScale = 0.6f)
+            Row(
+                modifier = Modifier.horizontalScroll(rememberScrollState()),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                when {
+                    notApplicable -> Box(
+                        modifier = Modifier
+                            .height(22.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(ZincSurfaceVariant)
+                            .border(2.dp, ZincBorder.copy(alpha = 0.6f), RoundedCornerShape(6.dp))
+                            .padding(horizontal = 7.dp),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            imageVector = Icons.Filled.Check,
-                            contentDescription = null,
-                            tint = ZincBackground,
-                            modifier = Modifier.size(14.dp)
+                        Text(
+                            text = "N/A",
+                            color = ZincTextMuted,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.SemiBold
                         )
+                    }
+                    target > 1 -> Box(
+                        modifier = Modifier
+                            .height(22.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(if (done) AccentEmerald else ZincSurfaceVariant)
+                            .border(2.dp, if (done) AccentEmerald else ZincBorder, RoundedCornerShape(6.dp))
+                            .padding(horizontal = 7.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "$completed/$target",
+                            color = if (done) ZincBackground else ZincTextPrimary,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                    else -> Box(
+                        modifier = Modifier
+                            .size(22.dp)
+                            .scale(checkboxScale.value)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(if (done) AccentEmerald else Color.Transparent)
+                            .border(2.dp, if (done) AccentEmerald else ZincBorder, RoundedCornerShape(6.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        androidx.compose.animation.AnimatedVisibility(
+                            visible = done,
+                            enter = fadeIn(tween(120)) + scaleIn(tween(120), initialScale = 0.6f),
+                            exit = fadeOut(tween(80)) + scaleOut(tween(80), targetScale = 0.6f)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Check,
+                                contentDescription = null,
+                                tint = ZincBackground,
+                                modifier = Modifier.size(14.dp)
+                            )
+                        }
                     }
                 }
             }
         }
-        // 20dp trailing spacer = 6dp (spacer) + 14dp (chevron) used in GroupRow.
-        // This keeps the checkbox column of leaf rows in the same vertical line as group rows.
-        Spacer(Modifier.width(20.dp))
     }
 
     if (menuOpen) {
@@ -1528,7 +1530,7 @@ private fun LeafActionMenu(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.BottomCenter
         ) {
-            // Scrim — tapping outside the panel dismisses without saving
+            // Scrim — tapping outside dismisses without saving
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -1539,38 +1541,48 @@ private fun LeafActionMenu(
                     ) { onDismiss() }
             )
 
-            // Panel — slides up from the bottom edge
+            // Panel — same visual shell as the R&A panel
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .heightIn(max = 560.dp)
+                    .shadow(elevation = 32.dp, shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
                     .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
                     .background(ZincSurface)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) {}
+                    .verticalScroll(rememberScrollState())
                     .navigationBarsPadding()
                     .padding(horizontal = 20.dp)
-                    .padding(top = 14.dp, bottom = 24.dp)
+                    .padding(top = 20.dp, bottom = 24.dp)
             ) {
-                // Drag handle
-                Box(
-                    modifier = Modifier
-                        .width(36.dp)
-                        .height(4.dp)
-                        .clip(RoundedCornerShape(2.dp))
-                        .background(ZincBorder)
-                        .align(Alignment.CenterHorizontally)
-                )
-                Spacer(Modifier.height(18.dp))
+                // Header — title left, close button right
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = title,
+                        color = ZincTextPrimary,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.weight(1f)
+                    )
+                    IconButton(onClick = onDismiss) {
+                        Icon(
+                            imageVector = Icons.Filled.Close,
+                            contentDescription = "Close",
+                            tint = ZincTextMuted
+                        )
+                    }
+                }
 
-                // Task title
-                Text(
-                    text = title,
-                    color = ZincTextPrimary,
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
                 Spacer(Modifier.height(20.dp))
 
-                // N/A toggle row
-                Row(
+                // N/A toggle row — centered text, blue tint when active, no badge
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(14.dp))
@@ -1586,30 +1598,15 @@ private fun LeafActionMenu(
                         )
                         .clickable { onToggleNotApplicable(); onDismiss() }
                         .padding(horizontal = 16.dp, vertical = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = if (notApplicable) "Clear N/A" else "Set as N/A",
                         color = if (notApplicable) AccentBlue else ZincTextPrimary,
                         fontSize = 15.sp,
-                        fontWeight = FontWeight.Medium
+                        fontWeight = FontWeight.Medium,
+                        textAlign = TextAlign.Center
                     )
-                    if (notApplicable) {
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(AccentBlue.copy(alpha = 0.13f))
-                                .padding(horizontal = 8.dp, vertical = 3.dp)
-                        ) {
-                            Text(
-                                text = "Active",
-                                color = AccentBlue,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
-                    }
                 }
 
                 Spacer(Modifier.height(22.dp))

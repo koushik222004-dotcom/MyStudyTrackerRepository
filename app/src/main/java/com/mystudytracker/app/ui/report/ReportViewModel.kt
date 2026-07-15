@@ -36,12 +36,6 @@ class ReportViewModel(
     private val _loading = MutableStateFlow(false)
     val loading: StateFlow<Boolean> = _loading.asStateFlow()
 
-    private val _selectedTask = MutableStateFlow<LeafBacklog?>(null)
-    val selectedTask: StateFlow<LeafBacklog?> = _selectedTask.asStateFlow()
-
-    private val _pendingDates = MutableStateFlow<List<LocalDate>>(emptyList())
-    val pendingDates: StateFlow<List<LocalDate>> = _pendingDates.asStateFlow()
-
     // Today as confirmed by the date-integrity system. Null means no sync has happened yet.
     // Never falls back to LocalDate.now() - the backlog must only count days the user has
     // explicitly confirmed, so an unsynced device shows a "sync required" prompt instead of
@@ -113,24 +107,6 @@ class ReportViewModel(
                 BacklogNode(title = node.title, pendingUnits = childNodes.sumOf { it.pendingUnits }, children = childNodes, leaf = null)
             }
         }
-    }
-
-    /** Opens the drill-down list of specific dates a leaf is still outstanding on. */
-    fun selectTask(leaf: LeafBacklog) {
-        val today = _today.value ?: return
-        _selectedTask.value = leaf
-        viewModelScope.launch {
-            // Pending dates also exclude today — consistent with the backlog calculation.
-            val yesterday = today.minusDays(1)
-            _pendingDates.value = if (yesterday.isBefore(DateRules.START_DATE)) emptyList()
-            else repository.pendingDatesForTask(leaf.taskKey, yesterday.toString())
-                .map { LocalDate.parse(it) }
-        }
-    }
-
-    fun clearSelection() {
-        _selectedTask.value = null
-        _pendingDates.value = emptyList()
     }
 
     companion object {

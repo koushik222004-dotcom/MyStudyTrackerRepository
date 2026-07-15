@@ -47,13 +47,5 @@ interface DailyTaskStateDao {
     )
     suspend fun backlogThrough(throughDate: String): List<TaskBacklogRow>
 
-    /** Every date on/before [throughDate] with an outstanding (not done, not excluded) row for [taskKey] - used for report drill-down. */
-    @Query(
-        """
-        SELECT date FROM daily_task_state
-        WHERE taskKey = :taskKey AND date <= :throughDate AND notApplicable = 0 AND completedCount < targetCount
-        ORDER BY date ASC
-        """
-    )
-    suspend fun pendingDatesForTask(taskKey: String, throughDate: String): List<String>
+
 }

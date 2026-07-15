@@ -29,16 +29,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.outlined.CalendarToday
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -90,8 +90,6 @@ fun ReportScreen(viewModel: ReportViewModel, onBack: () -> Unit) {
     val today by viewModel.today.collectAsState()
     val tree by viewModel.tree.collectAsState()
     val loading by viewModel.loading.collectAsState()
-    val selectedTask by viewModel.selectedTask.collectAsState()
-    val pendingDates by viewModel.pendingDates.collectAsState()
     val totalPending = tree.sumOf { it.pendingUnits }
 
     Box(modifier = Modifier.fillMaxSize().background(ZincBackground)) {
@@ -182,7 +180,7 @@ fun ReportScreen(viewModel: ReportViewModel, onBack: () -> Unit) {
                         }
                         Spacer(Modifier.height(16.dp))
                         Text(
-                            text = "Sync Required",
+                            text = "Sync Required!",
                             color = ZincTextPrimary,
                             fontSize = 16.sp,
                             fontWeight = FontWeight.SemiBold,
@@ -256,7 +254,7 @@ fun ReportScreen(viewModel: ReportViewModel, onBack: () -> Unit) {
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         tree.filter { it.pendingUnits > 0 }.forEach { section ->
-                            SectionBacklogCard(section = section, onSelectLeaf = viewModel::selectTask)
+                            SectionBacklogCard(section = section)
                         }
                     }
                 }
@@ -264,79 +262,12 @@ fun ReportScreen(viewModel: ReportViewModel, onBack: () -> Unit) {
         }
     }
 
-    // ── Drill-down dialog ──────────────────────────────────────────────
-    if (selectedTask != null) {
-        val task = selectedTask!!
-        AlertDialog(
-            onDismissRequest = viewModel::clearSelection,
-            containerColor = ZincSurface,
-            title = {
-                Text(
-                    text = task.titlePath.joinToString(" › "),
-                    color = ZincTextPrimary,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
-            },
-            text = {
-                if (pendingDates.isEmpty()) {
-                    Text(
-                        text = "No specific outstanding dates found.",
-                        color = ZincTextMuted,
-                        fontSize = 13.sp
-                    )
-                } else {
-                    Column(
-                        modifier = Modifier.verticalScroll(rememberScrollState()),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Text(
-                            text = "${pendingDates.size} date${if (pendingDates.size == 1) "" else "s"} pending",
-                            color = ZincTextMuted,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Medium,
-                            letterSpacing = 0.5.sp
-                        )
-                        Spacer(Modifier.height(2.dp))
-                        pendingDates.forEach { date ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(ZincSurfaceVariant)
-                                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(6.dp)
-                                        .clip(RoundedCornerShape(50))
-                                        .background(AccentRed)
-                                )
-                                Spacer(Modifier.width(10.dp))
-                                Text(
-                                    text = date.format(DATE_LABEL_FORMAT),
-                                    color = ZincTextSecondary,
-                                    fontSize = 13.sp
-                                )
-                            }
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                androidx.compose.material3.TextButton(onClick = viewModel::clearSelection) {
-                    Text(text = "Close", color = AccentBlue)
-                }
-            }
-        )
-    }
 }
 
 // ── Section card ──────────────────────────────────────────────────────────────────────────────
 
 @Composable
-private fun SectionBacklogCard(section: BacklogNode, onSelectLeaf: (LeafBacklog) -> Unit) {
+private fun SectionBacklogCard(section: BacklogNode) {
     var expanded by remember(section) { mutableStateOf(true) }
     val chevronRotation by animateFloatAsState(
         targetValue = if (expanded) 90f else 0f,
@@ -388,7 +319,7 @@ private fun SectionBacklogCard(section: BacklogNode, onSelectLeaf: (LeafBacklog)
                     verticalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
                     section.children.filter { it.pendingUnits > 0 }.forEachIndexed { i, child ->
-                        BacklogNodeRow(node = child, depth = 0, onSelectLeaf = onSelectLeaf)
+                        BacklogNodeRow(node = child, depth = 0)
                         if (i < section.children.filter { it.pendingUnits > 0 }.lastIndex) {
                             HorizontalDivider(
                                 color = ZincBorder.copy(alpha = 0.2f),
@@ -408,17 +339,14 @@ private fun SectionBacklogCard(section: BacklogNode, onSelectLeaf: (LeafBacklog)
 @Composable
 private fun BacklogNodeRow(
     node: BacklogNode,
-    depth: Int,
-    onSelectLeaf: (LeafBacklog) -> Unit
+    depth: Int
 ) {
     if (node.pendingUnits == 0) return
 
     if (node.leaf != null) {
         LeafBacklogRow(
-            leaf = node.leaf,
             title = node.title,
-            pendingUnits = node.pendingUnits,
-            onSelectLeaf = onSelectLeaf
+            pendingUnits = node.pendingUnits
         )
         return
     }
@@ -473,7 +401,7 @@ private fun BacklogNodeRow(
             ) {
                 val visibleChildren = node.children.filter { it.pendingUnits > 0 }
                 visibleChildren.forEachIndexed { i, child ->
-                    BacklogNodeRow(node = child, depth = depth + 1, onSelectLeaf = onSelectLeaf)
+                    BacklogNodeRow(node = child, depth = depth + 1)
                     if (i < visibleChildren.lastIndex) {
                         HorizontalDivider(
                             color = ZincBorder.copy(alpha = 0.25f),
@@ -491,16 +419,12 @@ private fun BacklogNodeRow(
 
 @Composable
 private fun LeafBacklogRow(
-    leaf: LeafBacklog,
     title: String,
-    pendingUnits: Int,
-    onSelectLeaf: (LeafBacklog) -> Unit
+    pendingUnits: Int
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .clickable { onSelectLeaf(leaf) }
             .padding(vertical = 9.dp, horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -511,13 +435,6 @@ private fun LeafBacklogRow(
             modifier = Modifier.weight(1f)
         )
         PendingBadge(pendingUnits = pendingUnits)
-        Spacer(Modifier.width(6.dp))
-        Icon(
-            Icons.Filled.ChevronRight,
-            contentDescription = "View dates",
-            tint = ZincTextMuted,
-            modifier = Modifier.size(14.dp)
-        )
     }
 }
 
@@ -525,24 +442,30 @@ private fun LeafBacklogRow(
 
 @Composable
 private fun PendingBadge(pendingUnits: Int) {
-    val tint = when {
-        pendingUnits > 10 -> AccentRed
-        pendingUnits > 5  -> Color(0xFFE89D3A)
-        else              -> AccentBlue
-    }
+    // Red when any backlog exists; green when fully cleared.
+    val tint = if (pendingUnits == 0) AccentEmerald else AccentRed
+    // Fixed-width view box — right-edges align across all rows.
+    // Content scrolls horizontally if the number overflows the box.
     Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(50))
-            .background(tint.copy(alpha = 0.18f))
-            .border(1.dp, tint.copy(alpha = 0.40f), RoundedCornerShape(50))
-            .padding(horizontal = 10.dp, vertical = 4.dp),
-        contentAlignment = Alignment.Center
+        modifier = Modifier.width(56.dp),
+        contentAlignment = Alignment.CenterEnd
     ) {
-        Text(
-            text = "$pendingUnits",
-            color = tint,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Bold
-        )
+        Row(modifier = Modifier.horizontalScroll(rememberScrollState())) {
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(tint.copy(alpha = 0.18f))
+                    .border(1.dp, tint.copy(alpha = 0.40f), RoundedCornerShape(50))
+                    .padding(horizontal = 10.dp, vertical = 4.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "$pendingUnits",
+                    color = tint,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
     }
 }
