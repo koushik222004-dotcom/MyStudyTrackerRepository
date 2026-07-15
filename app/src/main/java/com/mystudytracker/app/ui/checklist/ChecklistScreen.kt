@@ -1122,7 +1122,14 @@ private fun SectionCard(
                     )
                 }
             }
-            AggregateStateIcon(state = sectionState)
+            // Checkbox tap cascades check/uncheck on all leaves; row tap does same for sections
+            // since they are always fully visible (no collapse at section level).
+            UnifiedCheckbox(
+                state = sectionState,
+                modifier = Modifier
+                    .clickable(enabled = !locked) { actions.toggleGroup(sectionLeafKeys) }
+                    .padding(4.dp)
+            )
         }
 
         // Hairline divider between header and children
@@ -1205,7 +1212,7 @@ private fun GroupRow(
     )
 
     Column(modifier = Modifier.fillMaxWidth()) {
-        // Tap to expand/collapse; long-press cascades "doesn't apply" to all leaves underneath.
+        // Tap to expand/collapse; long-press cascades Not Applicable to all leaves underneath.
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1225,8 +1232,6 @@ private fun GroupRow(
                 fontWeight = FontWeight.Medium,
                 modifier = Modifier.weight(1f)
             )
-            AggregateStateIcon(state = aggregateState(leafKeys, taskStates))
-            Spacer(Modifier.width(8.dp))
             Icon(
                 imageVector = Icons.Filled.ChevronRight,
                 contentDescription = if (expanded) "Collapse" else "Expand",
@@ -1234,6 +1239,15 @@ private fun GroupRow(
                 modifier = Modifier
                     .size(15.dp)
                     .rotate(chevronRotation)
+            )
+            Spacer(Modifier.width(8.dp))
+            // Checkbox is separately clickable: tap it to cascade check/uncheck without
+            // collapsing the group. Long-pressing the row (handled on Row above) cascades N/A.
+            UnifiedCheckbox(
+                state = aggregateState(leafKeys, taskStates),
+                modifier = Modifier
+                    .clickable(enabled = !locked) { actions.toggleGroup(leafKeys) }
+                    .padding(4.dp)
             )
         }
 
@@ -1274,16 +1288,57 @@ private fun GroupRow(
     }
 }
 
-/** Small trailing icon summarizing a section/group's derived state - never independently tappable. */
+/**
+ * Unified 22 dp square checkbox used for both groups and leaves, always on the trailing edge.
+ * Group states derive from all leaves underneath; leaf states come from their own stored state.
+ * Same shape and position for every row type so the UI reads as one consistent system.
+ * [clickable] - optional additional Modifier applied to the outer Box (used for groups where
+ * tapping the checkbox cascades check/uncheck independently from tapping the row).
+ */
 @Composable
-private fun AggregateStateIcon(state: GroupState) {
-    val (icon, tint) = when (state) {
-        GroupState.DONE -> Icons.Filled.Check to AccentEmerald
-        GroupState.PARTIAL -> Icons.Filled.Remove to AccentBlue
-        GroupState.EXCLUDED -> Icons.Filled.Block to ZincTextMuted
-        GroupState.EMPTY -> Icons.Outlined.RadioButtonUnchecked to ZincTextMuted
+private fun UnifiedCheckbox(state: GroupState, modifier: Modifier = Modifier) {
+    val bgColor = when (state) {
+        GroupState.DONE     -> AccentEmerald
+        GroupState.PARTIAL  -> AccentBlue.copy(alpha = 0.13f)
+        GroupState.EXCLUDED -> ZincSurfaceVariant
+        GroupState.EMPTY    -> Color.Transparent
     }
-    Icon(imageVector = icon, contentDescription = null, tint = tint, modifier = Modifier.size(16.dp))
+    val borderColor = when (state) {
+        GroupState.DONE     -> AccentEmerald
+        GroupState.PARTIAL  -> AccentBlue
+        GroupState.EXCLUDED -> ZincBorder.copy(alpha = 0.5f)
+        GroupState.EMPTY    -> ZincBorder
+    }
+    Box(
+        modifier = modifier
+            .size(22.dp)
+            .clip(RoundedCornerShape(6.dp))
+            .background(bgColor)
+            .border(2.dp, borderColor, RoundedCornerShape(6.dp)),
+        contentAlignment = Alignment.Center
+    ) {
+        when (state) {
+            GroupState.DONE -> Icon(
+                imageVector = Icons.Filled.Check,
+                contentDescription = null,
+                tint = ZincBackground,
+                modifier = Modifier.size(14.dp)
+            )
+            GroupState.PARTIAL -> Icon(
+                imageVector = Icons.Filled.Remove,
+                contentDescription = null,
+                tint = AccentBlue,
+                modifier = Modifier.size(13.dp)
+            )
+            GroupState.EXCLUDED -> Icon(
+                imageVector = Icons.Filled.Block,
+                contentDescription = null,
+                tint = ZincTextMuted,
+                modifier = Modifier.size(12.dp)
+            )
+            GroupState.EMPTY -> { /* nothing inside */ }
+        }
+    }
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -1324,27 +1379,52 @@ private fun LeafRow(
                 onClick = { actions.toggleLeaf(fullKey) },
                 onLongClick = { menuOpen = true }
             )
-            .padding(vertical = 9.dp, horizontal = 2.dp),
+            .padding(vertical = 9.dp, horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        // Title — leading, with strikethrough when done
+        Crossfade(
+            targetState = done,
+            animationSpec = tween(200),
+            label = "taskStrike",
+            modifier = Modifier.weight(1f)
+        ) { isDone ->
+            Text(
+                text = title,
+                color = labelColor,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Normal,
+                textDecoration = if (isDone) TextDecoration.LineThrough else TextDecoration.None
+            )
+        }
+        Spacer(Modifier.width(12.dp))
+        // Checkbox — trailing, same 22 dp square as the group UnifiedCheckbox so all rows
+        // in the list share one visual language. Leaves show their own individual state rather
+        // than a derived aggregate. The tap area is the whole Row so this box is display-only.
         when {
             notApplicable -> Box(
                 modifier = Modifier
-                    .height(20.dp)
+                    .height(22.dp)
                     .clip(RoundedCornerShape(6.dp))
-                    .border(2.dp, ZincBorder, RoundedCornerShape(6.dp))
-                    .padding(horizontal = 6.dp),
+                    .background(ZincSurfaceVariant)
+                    .border(2.dp, ZincBorder.copy(alpha = 0.6f), RoundedCornerShape(6.dp))
+                    .padding(horizontal = 7.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Text(text = "N/A", color = ZincTextMuted, fontSize = 10.sp, fontWeight = FontWeight.Medium)
+                Text(
+                    text = "N/A",
+                    color = ZincTextMuted,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
             }
             target > 1 -> Box(
                 modifier = Modifier
-                    .height(20.dp)
+                    .height(22.dp)
                     .clip(RoundedCornerShape(6.dp))
                     .background(if (done) AccentEmerald else ZincSurfaceVariant)
                     .border(2.dp, if (done) AccentEmerald else ZincBorder, RoundedCornerShape(6.dp))
-                    .padding(horizontal = 6.dp),
+                    .padding(horizontal = 7.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -1356,7 +1436,7 @@ private fun LeafRow(
             }
             else -> Box(
                 modifier = Modifier
-                    .size(20.dp)
+                    .size(22.dp)
                     .scale(checkboxScale.value)
                     .clip(RoundedCornerShape(6.dp))
                     .background(if (done) AccentEmerald else Color.Transparent)
@@ -1377,20 +1457,6 @@ private fun LeafRow(
                 }
             }
         }
-        Spacer(Modifier.width(12.dp))
-        // Crossfade between plain and struck-through text: at rest only one Text node exists.
-        Crossfade(
-            targetState = done,
-            animationSpec = tween(200),
-            label = "taskStrike"
-        ) { isDone ->
-            Text(
-                text = title,
-                color = labelColor,
-                fontSize = 15.sp,
-                textDecoration = if (isDone) TextDecoration.LineThrough else TextDecoration.None
-            )
-        }
     }
 
     if (menuOpen) {
@@ -1406,7 +1472,7 @@ private fun LeafRow(
 }
 
 /**
- * Long-press menu for a single leaf task: toggle "doesn't apply" and set a quantity greater than
+ * Long-press menu for a single leaf task: toggle "Not Applicable" and set a quantity greater than
  * one (e.g. "2 lectures today"). A plain Material3 dialog is enough here - this is an infrequent,
  * deliberate action, not part of the screen's everyday tap-to-check flow that warrants bespoke
  * animation the way the bottom bar and checkbox do.
@@ -1438,7 +1504,7 @@ private fun LeafActionMenu(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        text = if (notApplicable) "Remove \"Doesn't Apply\"" else "Mark as \"Doesn't Apply\"",
+                        text = if (notApplicable) "Remove Not Applicable" else "Mark as Not Applicable",
                         color = ZincTextPrimary,
                         fontSize = 14.sp
                     )
