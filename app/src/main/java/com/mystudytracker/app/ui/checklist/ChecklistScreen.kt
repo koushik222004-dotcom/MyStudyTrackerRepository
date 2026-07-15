@@ -29,6 +29,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -1049,6 +1050,7 @@ private data class ChecklistActions(
     val toggleGroupNotApplicable: (List<String>) -> Unit
 )
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun SectionCard(
     section: SectionDefinition,
@@ -1157,6 +1159,7 @@ private fun NodeRow(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun GroupRow(
     node: TaskGroup,
@@ -1235,6 +1238,7 @@ private fun AggregateStateIcon(state: GroupState) {
     Icon(imageVector = icon, contentDescription = null, tint = tint, modifier = Modifier.size(16.dp))
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun LeafRow(
     fullKey: String,
