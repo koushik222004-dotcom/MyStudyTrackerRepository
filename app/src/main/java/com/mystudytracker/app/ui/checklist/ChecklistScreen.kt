@@ -1218,24 +1218,24 @@ private fun GroupRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(52.dp)
+                .heightIn(min = 52.dp)
                 .clip(RoundedCornerShape(10.dp))
                 .combinedClickable(
                     enabled = !locked,
                     onClick = { expanded = !expanded },
                     onLongClick = { actions.toggleGroupNotApplicable(leafKeys) }
                 )
-                .padding(horizontal = 16.dp),
+                .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Title — takes remaining space, always single-line so the fixed-height
-            // row is never pushed taller and text stays vertically centred.
+            // Title — takes remaining space; wraps to a second line for long names,
+            // with the row growing to fit via heightIn(min).
             Text(
                 text = node.title,
                 color = ZincTextPrimary,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Normal,
-                maxLines = 1,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f)
             )
@@ -1405,18 +1405,18 @@ private fun LeafRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(52.dp)
+            .heightIn(min = 52.dp)
             .clip(RoundedCornerShape(10.dp))
             .combinedClickable(
                 enabled = !locked,
                 onClick = { actions.toggleLeaf(fullKey) },
                 onLongClick = { menuOpen = true }
             )
-            .padding(horizontal = 16.dp),
+            .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Title — leading, with strikethrough when done. Single-line so the row
-        // height stays fixed at 52 dp and text is always vertically centred.
+        // Title — leading, with strikethrough when done. Wraps to a second line
+        // for long names; row grows via heightIn(min).
         Crossfade(
             targetState = done,
             animationSpec = tween(200),
@@ -1428,7 +1428,7 @@ private fun LeafRow(
                 color = labelColor,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Normal,
-                maxLines = 1,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
                 textDecoration = if (isDone) TextDecoration.LineThrough else TextDecoration.None
             )
