@@ -1144,13 +1144,15 @@ private fun SectionCard(
 
         Column(modifier = Modifier.fillMaxWidth()) {
             section.children.forEachIndexed { index, node ->
-                NodeRow(node = node, pathPrefix = section.key, depth = 0, taskStates = taskStates, locked = locked, actions = actions)
-                if (index < section.children.lastIndex) {
-                    HorizontalDivider(
-                        color = ZincBorder.copy(alpha = 0.3f),
-                        thickness = 0.5.dp
-                    )
-                }
+                NodeRow(
+                    node = node,
+                    pathPrefix = section.key,
+                    depth = 0,
+                    taskStates = taskStates,
+                    locked = locked,
+                    actions = actions,
+                    showTrailingDivider = index < section.children.lastIndex
+                )
             }
         }
     }
@@ -1181,12 +1183,13 @@ private fun NodeRow(
     depth: Int,
     taskStates: Map<String, DailyTaskState>,
     locked: Boolean,
-    actions: ChecklistActions
+    actions: ChecklistActions,
+    showTrailingDivider: Boolean = false
 ) {
     val fullKey = "$pathPrefix.${node.key}"
     when (node) {
-        is TaskLeaf -> LeafRow(fullKey = fullKey, title = node.title, state = taskStates[fullKey], locked = locked, actions = actions)
-        is TaskGroup -> GroupRow(node = node, parentPrefix = pathPrefix, fullKey = fullKey, depth = depth, taskStates = taskStates, locked = locked, actions = actions)
+        is TaskLeaf -> LeafRow(fullKey = fullKey, title = node.title, state = taskStates[fullKey], locked = locked, actions = actions, showTrailingDivider = showTrailingDivider)
+        is TaskGroup -> GroupRow(node = node, parentPrefix = pathPrefix, fullKey = fullKey, depth = depth, taskStates = taskStates, locked = locked, actions = actions, showTrailingDivider = showTrailingDivider)
     }
 }
 
@@ -1199,7 +1202,8 @@ private fun GroupRow(
     depth: Int,
     taskStates: Map<String, DailyTaskState>,
     locked: Boolean,
-    actions: ChecklistActions
+    actions: ChecklistActions,
+    showTrailingDivider: Boolean = false
 ) {
     var expanded by remember(fullKey) { mutableStateOf(false) }
     val leafKeys = remember(node, parentPrefix) { TaskCatalog.leafKeysUnder(node, parentPrefix) }
@@ -1273,7 +1277,7 @@ private fun GroupRow(
                     .fillMaxWidth()
                     .background(childContainerColor(depth))
             ) {
-                // Divider at the top so children open at a clear boundary
+                // Divider at the top so children open at a clear visual boundary
                 HorizontalDivider(
                     color = ZincBorder.copy(alpha = 0.3f),
                     thickness = 0.5.dp
@@ -1285,16 +1289,19 @@ private fun GroupRow(
                         depth = depth + 1,
                         taskStates = taskStates,
                         locked = locked,
-                        actions = actions
+                        actions = actions,
+                        showTrailingDivider = i < node.children.lastIndex
                     )
-                    if (i < node.children.lastIndex) {
-                        HorizontalDivider(
-                            color = ZincBorder.copy(alpha = 0.3f),
-                            thickness = 0.5.dp
-                        )
-                    }
                 }
             }
+        }
+        // Trailing divider only when collapsed — disappears when children open,
+        // reappears when they close, so children expand into the divider's space.
+        if (showTrailingDivider && !expanded) {
+            HorizontalDivider(
+                color = ZincBorder.copy(alpha = 0.3f),
+                thickness = 0.5.dp
+            )
         }
     }
 }
@@ -1372,7 +1379,8 @@ private fun LeafRow(
     title: String,
     state: DailyTaskState?,
     locked: Boolean,
-    actions: ChecklistActions
+    actions: ChecklistActions,
+    showTrailingDivider: Boolean = false
 ) {
     val notApplicable = state?.notApplicable == true
     val target = state?.targetCount ?: 1
@@ -1500,6 +1508,13 @@ private fun LeafRow(
                 }
             }
         }
+    }
+
+    if (showTrailingDivider) {
+        HorizontalDivider(
+            color = ZincBorder.copy(alpha = 0.3f),
+            thickness = 0.5.dp
+        )
     }
 
     if (menuOpen) {
