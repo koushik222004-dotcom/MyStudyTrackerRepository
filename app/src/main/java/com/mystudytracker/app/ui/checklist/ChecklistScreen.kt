@@ -1222,13 +1222,14 @@ private fun GroupRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .height(52.dp)
                 .clip(RoundedCornerShape(10.dp))
                 .combinedClickable(
                     enabled = !locked,
                     onClick = { expanded = !expanded },
                     onLongClick = { actions.toggleGroupNotApplicable(leafKeys) }
                 )
-                .padding(vertical = 10.dp, horizontal = 16.dp),
+                .padding(horizontal = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             // Title — takes remaining space, wraps if needed.
@@ -1264,40 +1265,35 @@ private fun GroupRow(
             }
         }
 
-        // Children container — no dark background so the group header reads as a sealed unit.
-        // A hairline at the top marks the boundary between the header and its children.
+        // Children — darker background differentiates children from parent header.
+        // No internal vertical padding: each child leaf row is exactly the same height as
+        // the parent header row so total height = number-of-rows × ROW_HEIGHT (52dp).
         AnimatedVisibility(
             visible = expanded,
             enter = expandVertically(tween(220, easing = FastOutSlowInEasing)) + fadeIn(tween(180)),
             exit = shrinkVertically(tween(190, easing = LinearOutSlowInEasing)) + fadeOut(tween(140))
         ) {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                HorizontalDivider(
-                    color = ZincBorder.copy(alpha = 0.4f),
-                    thickness = 0.5.dp
-                )
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 6.dp),
-                    verticalArrangement = Arrangement.spacedBy(0.dp)
-                ) {
-                    node.children.forEachIndexed { i, child ->
-                        NodeRow(
-                            node = child,
-                            pathPrefix = fullKey,
-                            depth = depth + 1,
-                            taskStates = taskStates,
-                            locked = locked,
-                            actions = actions
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(childContainerColor(depth)),
+                verticalArrangement = Arrangement.spacedBy(0.dp)
+            ) {
+                node.children.forEachIndexed { i, child ->
+                    NodeRow(
+                        node = child,
+                        pathPrefix = fullKey,
+                        depth = depth + 1,
+                        taskStates = taskStates,
+                        locked = locked,
+                        actions = actions
+                    )
+                    if (i < node.children.lastIndex) {
+                        HorizontalDivider(
+                            color = ZincBorder.copy(alpha = 0.3f),
+                            thickness = 0.5.dp,
+                            modifier = Modifier.padding(horizontal = 16.dp)
                         )
-                        if (i < node.children.lastIndex) {
-                            HorizontalDivider(
-                                color = ZincBorder.copy(alpha = 0.3f),
-                                thickness = 0.5.dp,
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 1.dp)
-                            )
-                        }
                     }
                 }
             }
@@ -1403,13 +1399,14 @@ private fun LeafRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .height(52.dp)
             .clip(RoundedCornerShape(10.dp))
             .combinedClickable(
                 enabled = !locked,
                 onClick = { actions.toggleLeaf(fullKey) },
                 onLongClick = { menuOpen = true }
             )
-            .padding(vertical = 9.dp, horizontal = 16.dp),
+            .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // Title — leading, with strikethrough when done

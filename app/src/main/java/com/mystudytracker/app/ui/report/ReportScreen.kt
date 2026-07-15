@@ -362,9 +362,10 @@ private fun BacklogNodeRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .height(52.dp)
                 .clip(RoundedCornerShape(10.dp))
                 .clickable { expanded = !expanded }
-                .padding(vertical = 9.dp, horizontal = 16.dp),
+                .padding(horizontal = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
@@ -394,8 +395,7 @@ private fun BacklogNodeRow(
                     .fillMaxWidth()
                     .background(
                         if (depth == 0) Color(0xFF27272A) else Color(0xFF1F1F22)
-                    )
-                    .padding(vertical = 6.dp),
+                    ),
                 verticalArrangement = Arrangement.spacedBy(0.dp)
             ) {
                 val visibleChildren = node.children.filter { it.pendingUnits > 0 }
@@ -424,7 +424,8 @@ private fun LeafBacklogRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 9.dp, horizontal = 16.dp),
+            .height(52.dp)
+            .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
