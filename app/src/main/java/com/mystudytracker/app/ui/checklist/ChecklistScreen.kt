@@ -1139,24 +1139,21 @@ private fun SectionCard(
 
         HorizontalDivider(
             color = ZincBorder.copy(alpha = 0.3f),
-            thickness = 0.5.dp,
-            modifier = Modifier.padding(horizontal = 16.dp)
+            thickness = 0.5.dp
         )
 
         // Symmetric vertical padding so every item — including the last one — has equal
         // breathing room inside the card. The 8 dp bottom matches the 8 dp top.
         Column(
             modifier = Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(2.dp)
+            verticalArrangement = Arrangement.spacedBy(0.dp)
         ) {
             section.children.forEachIndexed { index, node ->
                 NodeRow(node = node, pathPrefix = section.key, depth = 0, taskStates = taskStates, locked = locked, actions = actions)
-                // Thin separator between siblings (not after last)
                 if (index < section.children.lastIndex) {
                     HorizontalDivider(
                         color = ZincBorder.copy(alpha = 0.3f),
-                        thickness = 0.5.dp,
-                        modifier = Modifier.padding(horizontal = 16.dp)
+                        thickness = 0.5.dp
                     )
                 }
             }
@@ -1294,8 +1291,7 @@ private fun GroupRow(
                     if (i < node.children.lastIndex) {
                         HorizontalDivider(
                             color = ZincBorder.copy(alpha = 0.3f),
-                            thickness = 0.5.dp,
-                            modifier = Modifier.padding(horizontal = 16.dp)
+                            thickness = 0.5.dp
                         )
                     }
                 }
