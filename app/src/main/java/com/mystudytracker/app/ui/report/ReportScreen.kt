@@ -58,6 +58,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mystudytracker.app.ui.theme.AccentBlue
@@ -312,22 +313,15 @@ private fun SectionBacklogCard(section: BacklogNode) {
             enter = expandVertically(tween(200, easing = FastOutSlowInEasing)) + fadeIn(tween(160)),
             exit = shrinkVertically(tween(180, easing = LinearOutSlowInEasing)) + fadeOut(tween(130))
         ) {
-            Column {
-                HorizontalDivider(color = ZincBorder.copy(alpha = 0.4f), thickness = 0.5.dp)
-                Column(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(2.dp)
-                ) {
-                    section.children.filter { it.pendingUnits > 0 }.forEachIndexed { i, child ->
-                        BacklogNodeRow(node = child, depth = 0)
-                        if (i < section.children.filter { it.pendingUnits > 0 }.lastIndex) {
-                            HorizontalDivider(
-                                color = ZincBorder.copy(alpha = 0.2f),
-                                thickness = 0.5.dp,
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 1.dp)
-                            )
-                        }
-                    }
+            Column(modifier = Modifier.fillMaxWidth()) {
+                HorizontalDivider(color = ZincBorder.copy(alpha = 0.3f), thickness = 0.5.dp)
+                val visibleChildren = section.children.filter { it.pendingUnits > 0 }
+                visibleChildren.forEachIndexed { i, child ->
+                    BacklogNodeRow(
+                        node = child,
+                        depth = 0,
+                        showTrailingDivider = i < visibleChildren.lastIndex
+                    )
                 }
             }
         }
@@ -339,14 +333,16 @@ private fun SectionBacklogCard(section: BacklogNode) {
 @Composable
 private fun BacklogNodeRow(
     node: BacklogNode,
-    depth: Int
+    depth: Int,
+    showTrailingDivider: Boolean = false
 ) {
     if (node.pendingUnits == 0) return
 
     if (node.leaf != null) {
         LeafBacklogRow(
             title = node.title,
-            pendingUnits = node.pendingUnits
+            pendingUnits = node.pendingUnits,
+            showTrailingDivider = showTrailingDivider
         )
         return
     }
@@ -373,6 +369,8 @@ private fun BacklogNodeRow(
                 color = ZincTextPrimary,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Normal,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f)
             )
             Icon(
@@ -393,23 +391,22 @@ private fun BacklogNodeRow(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(
-                        if (depth == 0) Color(0xFF27272A) else Color(0xFF1F1F22)
-                    ),
-                verticalArrangement = Arrangement.spacedBy(0.dp)
+                    .background(if (depth == 0) Color(0xFF111113) else Color(0xFF080809))
             ) {
+                HorizontalDivider(color = ZincBorder.copy(alpha = 0.3f), thickness = 0.5.dp)
                 val visibleChildren = node.children.filter { it.pendingUnits > 0 }
                 visibleChildren.forEachIndexed { i, child ->
-                    BacklogNodeRow(node = child, depth = depth + 1)
-                    if (i < visibleChildren.lastIndex) {
-                        HorizontalDivider(
-                            color = ZincBorder.copy(alpha = 0.25f),
-                            thickness = 0.5.dp,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 1.dp)
-                        )
-                    }
+                    BacklogNodeRow(
+                        node = child,
+                        depth = depth + 1,
+                        showTrailingDivider = i < visibleChildren.lastIndex
+                    )
                 }
             }
+        }
+
+        if (showTrailingDivider && !expanded) {
+            HorizontalDivider(color = ZincBorder.copy(alpha = 0.3f), thickness = 0.5.dp)
         }
     }
 }
@@ -419,7 +416,8 @@ private fun BacklogNodeRow(
 @Composable
 private fun LeafBacklogRow(
     title: String,
-    pendingUnits: Int
+    pendingUnits: Int,
+    showTrailingDivider: Boolean = false
 ) {
     Row(
         modifier = Modifier
@@ -432,9 +430,14 @@ private fun LeafBacklogRow(
             text = title,
             color = ZincTextPrimary,
             fontSize = 14.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f)
         )
         PendingBadge(pendingUnits = pendingUnits)
+    }
+    if (showTrailingDivider) {
+        HorizontalDivider(color = ZincBorder.copy(alpha = 0.3f), thickness = 0.5.dp)
     }
 }
 
