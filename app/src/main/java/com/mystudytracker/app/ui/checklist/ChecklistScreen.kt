@@ -1142,12 +1142,7 @@ private fun SectionCard(
             thickness = 0.5.dp
         )
 
-        // Symmetric vertical padding so every item — including the last one — has equal
-        // breathing room inside the card. The 8 dp bottom matches the 8 dp top.
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(0.dp)
-        ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
             section.children.forEachIndexed { index, node ->
                 NodeRow(node = node, pathPrefix = section.key, depth = 0, taskStates = taskStates, locked = locked, actions = actions)
                 if (index < section.children.lastIndex) {
@@ -1276,9 +1271,13 @@ private fun GroupRow(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(childContainerColor(depth)),
-                verticalArrangement = Arrangement.spacedBy(0.dp)
+                    .background(childContainerColor(depth))
             ) {
+                // Divider at the top so children open at a clear boundary
+                HorizontalDivider(
+                    color = ZincBorder.copy(alpha = 0.3f),
+                    thickness = 0.5.dp
+                )
                 node.children.forEachIndexed { i, child ->
                     NodeRow(
                         node = child,
