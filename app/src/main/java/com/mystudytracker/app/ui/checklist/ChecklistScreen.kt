@@ -213,7 +213,6 @@ fun ChecklistScreen(
                 .navigationBarsPadding()
                 .padding(bottom = 84.dp)
         ) {
-            // ── Top bar ──────────────────────────────────────────────────────────────────
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -247,7 +246,6 @@ fun ChecklistScreen(
 
             Spacer(Modifier.height(8.dp))
 
-            // ── Section list ─────────────────────────────────────────────────────────────
             Column(
                 modifier = Modifier
                     .padding(horizontal = 16.dp)
@@ -285,7 +283,13 @@ fun ChecklistScreen(
             onLock = { viewModel.lockDay() }
         )
 
-        // ── Remark & Attachments scrim ──────────────────────────────────────────────────
+        // ── Remark & Attachments panel ──────────────────────────────────────────────────────
+        // A fixed-position overlay instead of a draggable bottom sheet: its bottom edge sits
+        // pinned exactly above the navigation bar (via navigationBarsPadding on the panel itself)
+        // for its entire lifetime, so there is no slide-through-the-nav-bar animation frame to get
+        // wrong in the first place. Opening/closing is a fade + gentle scale from that fixed
+        // anchor rather than a translation, which reads as a deliberate, professional micro-
+        // transition instead of a sheet "sliding" into system UI territory.
         AnimatedVisibility(
             visible = sheetOpen,
             enter = fadeIn(tween(180)),
@@ -330,12 +334,19 @@ fun ChecklistScreen(
 
 // ── Remark & Attachments badge ─────────────────────────────────────────────────────────────────
 
+/**
+ * Compact "R&A" badge button that opens the Remark & Attachments sheet. A rounded-rectangle text
+ * badge reads clearly as its own labelled control rather than relying on a generic icon glyph.
+ * Fills with the accent color and border once a remark or attachment exists, matching the accent
+ * language used elsewhere in the app (today's calendar highlight, focused text field border).
+ */
 @Composable
 private fun RemarkAttachmentBadge(active: Boolean, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(8.dp))
             .background(if (active) AccentBlue.copy(alpha = 0.14f) else ZincSurfaceVariant)
+            // Border only when active — accent signal that content already exists.
             .let { if (active) it.border(1.dp, AccentBlue, RoundedCornerShape(8.dp)) else it }
             .clickable(
                 onClickLabel = if (active) "Edit remark & attachments" else "Add remark or attachments",
@@ -357,6 +368,23 @@ private fun RemarkAttachmentBadge(active: Boolean, onClick: () -> Unit) {
 
 // ── Remark & Attachments panel ─────────────────────────────────────────────────────────────────
 
+/**
+ * Fixed-position panel (not a draggable sheet) for the day's free-form remark and file
+ * attachments. It is composed directly in [ChecklistScreen]'s own overlay - not as a separate
+ * platform dialog/window - anchored to the bottom of the screen with [navigationBarsPadding], so
+ * its position never overlaps the system navigation bar at any point, including during its
+ * fade/scale open and close transitions (see the [AnimatedVisibility] calls at the call site).
+ *
+ * A single "Upload File" button opens the system file picker with no MIME pre-filter so users
+ * see all their files naturally. After selection the MIME type is validated: images, videos,
+ * audio, documents (PDF/Office/text), and archives are accepted; anything else - APKs,
+ * executables, etc. - shows an inline "Unsupported file format" error that auto-dismisses.
+ *
+ * The remark autosaves on a 400ms debounce. Height is capped with internal scrolling so a long
+ * remark plus many attachments never pushes the panel off-screen - it always stays reachable and
+ * dismissible. Closing works three ways: the header's close button, tapping the scrim behind the
+ * panel, or the device back button/gesture (see [BackHandler] at the call site).
+ */
 @Composable
 private fun RemarkAttachmentsPanel(
     date: LocalDate,
@@ -373,17 +401,23 @@ private fun RemarkAttachmentsPanel(
     var text by remember { mutableStateOf(initialNote ?: "") }
     var fileError by remember { mutableStateOf<String?>(null) }
 
+    // Debounced autosave - waits for typing to pause before writing to the database.
     LaunchedEffect(text) {
         delay(400)
         onSaveNote(text)
     }
 
+    // Eager flush on dismiss - covers the case where the panel is closed within the 400 ms
+    // debounce window and the latest edit would otherwise be silently discarded.
+    // rememberUpdatedState ensures onDispose always captures the current text value, not the
+    // one from the first composition.
     val currentText by rememberUpdatedState(text)
     val currentOnSaveNote by rememberUpdatedState(onSaveNote)
     DisposableEffect(Unit) {
         onDispose { currentOnSaveNote(currentText) }
     }
 
+    // Error banner auto-dismisses after 3 seconds so the user doesn't have to manually clear it.
     LaunchedEffect(fileError) {
         if (fileError != null) {
             delay(3000)
@@ -391,6 +425,8 @@ private fun RemarkAttachmentsPanel(
         }
     }
 
+    // Single launcher - opens all files (*/*). MIME validation happens after selection so the
+    // system picker shows the user's full file library without artificial restrictions.
     val fileLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri?.let {
             val mime = context.contentResolver.getType(it) ?: ""
@@ -407,6 +443,8 @@ private fun RemarkAttachmentsPanel(
         }
     }
 
+    // 20 % of screen height, clamped to [80 dp, 180 dp] so the field scales
+    // proportionally on every device — small phones, normal, and large.
     val remarkFieldMaxHeight = (LocalConfiguration.current.screenHeightDp * 0.20f).dp
         .coerceIn(80.dp, 180.dp)
 
@@ -417,6 +455,7 @@ private fun RemarkAttachmentsPanel(
             .shadow(elevation = 32.dp, shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
             .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
             .background(ZincSurface)
+            // Swallow taps so they don't fall through to the scrim behind this panel and dismiss it.
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null
@@ -426,6 +465,7 @@ private fun RemarkAttachmentsPanel(
             .padding(horizontal = 20.dp)
             .padding(top = 20.dp, bottom = 20.dp)
     ) {
+        // ── Header ──────────────────────────────────────────────────────────
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
@@ -458,6 +498,7 @@ private fun RemarkAttachmentsPanel(
 
         Spacer(Modifier.height(18.dp))
 
+        // ── REMARK ──────────────────────────────────────────────────────────
         Text(
             text = "REMARK",
             color = ZincTextMuted,
@@ -499,6 +540,7 @@ private fun RemarkAttachmentsPanel(
         HorizontalDivider(color = ZincBorder, thickness = 1.dp)
         Spacer(Modifier.height(16.dp))
 
+        // ── ATTACHMENTS ─────────────────────────────────────────────────────
         Text(
             text = "ATTACHMENTS",
             color = ZincTextMuted,
@@ -508,12 +550,21 @@ private fun RemarkAttachmentsPanel(
         )
         Spacer(Modifier.height(10.dp))
 
+        // Single upload button - cleaner than 4 separate type buttons
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(12.dp))
                 .background(ZincSurfaceVariant)
                 .clickable {
+                    // Drop focus (and the keyboard) before handing off to the system picker.
+                    // Without this, focus silently returns to the remark field the moment the
+                    // picker closes, which reopens the keyboard and makes its cursor handle
+                    // jump for a frame while everything resyncs. Clearing focus up front means
+                    // that automatic refocus-and-reopen never happens - the field stays put,
+                    // unfocused, until the user deliberately taps back into it - so there's no
+                    // resize/refocus sequence left for the handle to glitch during. The panel's
+                    // own position and size are completely untouched by this.
                     focusManager.clearFocus()
                     fileLauncher.launch("*/*")
                 }
@@ -536,6 +587,7 @@ private fun RemarkAttachmentsPanel(
             )
         }
 
+        // Unsupported format error - slides in below the button, auto-dismisses after 3s
         AnimatedVisibility(
             visible = fileError != null,
             enter = expandVertically(tween(200)) + fadeIn(tween(200)),
@@ -568,6 +620,7 @@ private fun RemarkAttachmentsPanel(
             }
         }
 
+        // Horizontally scrollable row of chips for each attached file
         if (attachments.isNotEmpty()) {
             Spacer(Modifier.height(12.dp))
             Row(
@@ -577,6 +630,10 @@ private fun RemarkAttachmentsPanel(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 attachments.forEach { attachment ->
+                    // Keyed on the stable attachment id so each chip's remembered
+                    // confirmingDelete state stays bound to that attachment - without this,
+                    // removing an item mid-confirmation would leak "Delete?" onto whichever
+                    // attachment slides into the same list position afterward.
                     key(attachment.id) {
                         AttachmentChip(
                             attachment = attachment,
@@ -592,6 +649,11 @@ private fun RemarkAttachmentsPanel(
 
 // ── Attachment chip ────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Compact dismissible chip for one attachment. Tap to open in the system viewer.
+ * Tapping × morphs the chip inline via AnimatedContent to a 'Delete?' confirmation
+ * row with a red ✓ (confirm) and × (cancel). Cancelling reverts with no side effects.
+ */
 @Composable
 private fun AttachmentChip(
     attachment: DailyAttachment,
@@ -608,6 +670,7 @@ private fun AttachmentChip(
 
     AnimatedContent(targetState = confirmingDelete, label = "chipDeleteConfirm") { confirming ->
         if (confirming) {
+            // ── Confirmation state ──────────────────────────────────────────
             Row(
                 modifier = Modifier
                     .clip(RoundedCornerShape(8.dp))
@@ -636,6 +699,7 @@ private fun AttachmentChip(
                 }
             }
         } else {
+            // ── Normal state ────────────────────────────────────────────────
             Row(
                 modifier = Modifier
                     .clip(RoundedCornerShape(8.dp))
@@ -678,6 +742,10 @@ private fun AttachmentChip(
 
 // ── File utilities ────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Copies a picked content URI into app-internal storage on the IO dispatcher.
+ * Returns (absolutePath, displayName) or null on failure.
+ */
 private suspend fun copyToInternalStorage(
     context: Context,
     uri: Uri,
@@ -691,6 +759,8 @@ private suspend fun copyToInternalStorage(
             ?: "file_${System.currentTimeMillis()}"
         val ext = displayName.substringAfterLast('.', "").takeIf { it.isNotEmpty() }
         val fileName = "${UUID.randomUUID()}${if (ext != null) ".$ext" else ""}"
+        // Files are stored under attachments/<date>/<type>/ so the folder stays organised even
+        // when a single day has a mix of images, videos, audio, and documents.
         val dir = File(context.filesDir, "attachments/$date/${type.name.lowercase()}").also { it.mkdirs() }
         val dest = File(dir, fileName)
         cr.openInputStream(uri)?.use { input ->
@@ -702,6 +772,10 @@ private suspend fun copyToInternalStorage(
     }
 }
 
+/**
+ * Opens an internal-storage file in an external viewer via FileProvider.
+ * Silently no-ops if the file is gone or no installed app handles the MIME type.
+ */
 private fun openAttachment(context: Context, attachment: DailyAttachment) {
     try {
         val file = File(attachment.filePath)
@@ -726,7 +800,9 @@ private fun openAttachment(context: Context, attachment: DailyAttachment) {
                 "Open with"
             )
         )
-    } catch (_: Exception) { }
+    } catch (_: Exception) {
+        // No installed app can handle this file type.
+    }
 }
 
 // ── Bottom bar ────────────────────────────────────────────────────────────────────────────────
@@ -742,20 +818,25 @@ private fun LockableBottomBar(
     onLock: () -> Unit
 ) {
     val interactive = allComplete && !locked
+
+    // Inline confirmation state — same pattern as the attachment chip delete confirm.
     var confirming by remember { mutableStateOf(false) }
+    // If the day becomes locked from outside, reset confirming state.
     LaunchedEffect(locked) { if (locked) confirming = false }
 
+    // Four distinct phases drive AnimatedContent.
     val barPhase = when {
-        locked      -> "locked"
-        confirming  -> "confirming"
+        locked     -> "locked"
+        confirming -> "confirming"
         allComplete -> "complete"
         else        -> "progress"
     }
 
     val absorbTouches = remember { MutableInteractionSource() }
+    // Hoisted above AnimatedContent so they survive transitions — creating them inside the
+    // AnimatedContent lambda causes new instances to be allocated on every phase change.
     val yesInteraction = remember { MutableInteractionSource() }
     val noInteraction  = remember { MutableInteractionSource() }
-
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -763,17 +844,19 @@ private fun LockableBottomBar(
             .navigationBarsPadding()
             .clickable(interactionSource = absorbTouches, indication = null) {
                 when {
-                    confirming  -> confirming = false
-                    interactive -> confirming = true
+                    confirming  -> confirming = false  // tap outside = cancel
+                    interactive -> confirming = true   // enter confirmation mode
                 }
             }
     ) {
+        // Hairline top separator — clean edge between scrollable content and the bar.
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(1.dp)
                 .background(ZincBorder.copy(alpha = 0.5f))
         )
+        // Progress track — ZincSurfaceVariant as the unfilled rail, AccentEmerald as fill.
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -797,14 +880,34 @@ private fun LockableBottomBar(
             AnimatedContent(
                 targetState = barPhase,
                 label = "bottomBarPhase",
+                // AnimatedContent aligns its outgoing/incoming content independently of the
+                // parent Box it sits in - its own default is Alignment.TopStart. The parent Box
+                // above centers *this composable's footprint*, but without this, the phase text
+                // inside was being anchored top-start of that footprint, not centered. Since each
+                // phase's text/row has a different width and height, "top-start of a differently
+                // sized box" lands the text in a visibly different spot on every phase change,
+                // which is what actually produced the odd/misplaced-looking text transition -
+                // independent of the progress bar and independent of the size/fade behavior below.
                 contentAlignment = Alignment.Center,
                 transitionSpec = {
+                    // Pure crossfade — no position change at all. The outgoing phase fades out
+                    // with a linear ease so it dissolves evenly; the incoming phase fades in with
+                    // FastOutSlowIn so it appears quickly and settles smoothly into full opacity.
+                    // The asymmetric durations (outgoing slightly shorter than incoming) keep the
+                    // two alpha curves from perfectly mirroring each other, which is what makes a
+                    // crossfade feel fluid rather than mechanical.
+                    //
+                    // SizeTransform is snapped: AnimatedContent animates its bounding box by
+                    // default, which re-centers differently-sized content every frame and reads as
+                    // a diagonal jump even with pure fades. Snapping kills that artifact entirely.
                     fadeIn(tween(260, delayMillis = 90, easing = FastOutSlowInEasing))
                         .togetherWith(fadeOut(tween(180, easing = LinearOutSlowInEasing)))
                         .using(SizeTransform(clip = false, sizeAnimationSpec = { _, _ -> snap() }))
                 }
             ) { phase ->
                 when (phase) {
+
+                    // ── Locked ────────────────────────────────────────────────
                     "locked" -> Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
                             imageVector = Icons.Filled.Lock,
@@ -821,6 +924,7 @@ private fun LockableBottomBar(
                         )
                     }
 
+                    // ── Are you sure? ─────────────────────────────────────────
                     "confirming" -> Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -831,6 +935,7 @@ private fun LockableBottomBar(
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Medium
                         )
+                        // Yes — confirm lock
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(8.dp))
@@ -849,6 +954,7 @@ private fun LockableBottomBar(
                                 fontWeight = FontWeight.SemiBold
                             )
                         }
+                        // No — cancel
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(8.dp))
@@ -869,6 +975,7 @@ private fun LockableBottomBar(
                         }
                     }
 
+                    // ── All complete, ready to lock ───────────────────────────
                     "complete" -> Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
                             imageVector = Icons.Outlined.Lock,
@@ -885,12 +992,16 @@ private fun LockableBottomBar(
                         )
                     }
 
+                    // ── In progress ───────────────────────────────────────────
+                    // Only the number rolls; "/$totalCount completed" stays fixed so the
+                    // surrounding text doesn't jump or resize during the animation.
                     else -> Row(verticalAlignment = Alignment.CenterVertically) {
                         AnimatedContent(
                             targetState = completedCount,
                             label = "completedCountRoll",
                             transitionSpec = {
                                 if (targetState > initialState) {
+                                    // Ticking up — new number rises in from below, old exits upward.
                                     (fadeIn(tween(200, easing = FastOutSlowInEasing)) +
                                         slideInVertically(tween(200, easing = FastOutSlowInEasing)) { it })
                                         .togetherWith(
@@ -898,6 +1009,7 @@ private fun LockableBottomBar(
                                                 slideOutVertically(tween(150, easing = LinearOutSlowInEasing)) { -it }
                                         )
                                 } else {
+                                    // Ticking down (uncheck) — new number drops in from above.
                                     (fadeIn(tween(200, easing = FastOutSlowInEasing)) +
                                         slideInVertically(tween(200, easing = FastOutSlowInEasing)) { -it })
                                         .togetherWith(
@@ -929,6 +1041,7 @@ private fun LockableBottomBar(
 
 // ── Section & task tree ───────────────────────────────────────────────────────────────────────
 
+/** Bundles every checklist mutation the tree UI can trigger, so composables below only need one parameter. */
 private data class ChecklistActions(
     val toggleLeaf: (String) -> Unit,
     val setQuantity: (String, Int) -> Unit,
@@ -937,9 +1050,8 @@ private data class ChecklistActions(
     val toggleGroupNotApplicable: (List<String>) -> Unit
 )
 
-// ── Depth-based child container shading ──────────────────────────────────────────────────────
-// Each depth level gets a progressively slightly darker surface so nested stacks are visually
-// distinct without needing indentation lines or explicit connectors.
+// Depth-based child container shading: each level gets a progressively darker surface so
+// nested stacks read as distinct without indentation lines or explicit connectors.
 private fun childContainerColor(depth: Int): Color = when (depth) {
     0    -> Color(0xFF27272A) // ZincSurfaceVariant - first level children
     else -> Color(0xFF1F1F22) // Slightly darker - deeper nesting
@@ -964,8 +1076,7 @@ private fun SectionCard(
             .clip(RoundedCornerShape(18.dp))
             .background(ZincSurface)
     ) {
-        // ── Section header ────────────────────────────────────────────────────────
-        // Tap cascades check/uncheck on all leaves; long-press cascades "doesn't apply".
+        // Section header — tap cascades check/uncheck on all leaves; long-press cascades N/A.
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1020,21 +1131,14 @@ private fun SectionCard(
             thickness = 0.5.dp
         )
 
-        // ── Children ──────────────────────────────────────────────────────────────
+        // Children
         Column(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
             section.children.forEachIndexed { index, node ->
-                NodeRow(
-                    node = node,
-                    pathPrefix = section.key,
-                    depth = 0,
-                    taskStates = taskStates,
-                    locked = locked,
-                    actions = actions
-                )
-                // Thin separator between sibling items (not after last)
+                NodeRow(node = node, pathPrefix = section.key, depth = 0, taskStates = taskStates, locked = locked, actions = actions)
+                // Thin separator between siblings (not after last)
                 if (index < section.children.lastIndex) {
                     HorizontalDivider(
                         color = ZincBorder.copy(alpha = 0.25f),
@@ -1047,6 +1151,7 @@ private fun SectionCard(
     }
 }
 
+/** Derived tri-state summary of a group of leaves - never stored, always computed from [taskStates]. */
 private enum class GroupState { EMPTY, PARTIAL, DONE, EXCLUDED }
 
 private fun aggregateState(leafKeys: List<String>, taskStates: Map<String, DailyTaskState>): GroupState {
@@ -1075,19 +1180,10 @@ private fun NodeRow(
 ) {
     val fullKey = "$pathPrefix.${node.key}"
     when (node) {
-        is TaskLeaf  -> LeafRow(fullKey = fullKey, title = node.title, state = taskStates[fullKey], locked = locked, actions = actions)
+        is TaskLeaf -> LeafRow(fullKey = fullKey, title = node.title, state = taskStates[fullKey], locked = locked, actions = actions)
         is TaskGroup -> GroupRow(node = node, parentPrefix = pathPrefix, fullKey = fullKey, depth = depth, taskStates = taskStates, locked = locked, actions = actions)
     }
 }
-
-// ── GroupRow ──────────────────────────────────────────────────────────────────────────────────
-//
-// Design: tapping the parent row toggles expand/collapse. Children slide in below with a shaded
-// background container — a "child stack" rather than an indented tree accordion. Long-pressing
-// the parent cascades "doesn't apply" to all leaves underneath.
-//
-// The chevron rotates 90° to indicate open/closed state; it is part of the row itself, not a
-// separate icon button, so the entire row is the single interaction target.
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -1105,11 +1201,11 @@ private fun GroupRow(
     val chevronRotation by animateFloatAsState(
         targetValue = if (expanded) 90f else 0f,
         animationSpec = tween(200),
-        label = "chevron_$fullKey"
+        label = "chevronRotation_$fullKey"
     )
 
     Column(modifier = Modifier.fillMaxWidth()) {
-        // Parent row — tap to expand/collapse, long-press to cascade N/A
+        // Tap to expand/collapse; long-press cascades "doesn't apply" to all leaves underneath.
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1141,7 +1237,7 @@ private fun GroupRow(
             )
         }
 
-        // Children container — different shade background = child stack
+        // Children container — shaded background = child stack visual hierarchy
         AnimatedVisibility(
             visible = expanded,
             enter = expandVertically(tween(220, easing = FastOutSlowInEasing)) + fadeIn(tween(180)),
@@ -1178,22 +1274,17 @@ private fun GroupRow(
     }
 }
 
+/** Small trailing icon summarizing a section/group's derived state - never independently tappable. */
 @Composable
 private fun AggregateStateIcon(state: GroupState) {
     val (icon, tint) = when (state) {
-        GroupState.DONE     -> Icons.Filled.Check               to AccentEmerald
-        GroupState.PARTIAL  -> Icons.Filled.Remove              to AccentBlue
-        GroupState.EXCLUDED -> Icons.Filled.Block               to ZincTextMuted
-        GroupState.EMPTY    -> Icons.Outlined.RadioButtonUnchecked to ZincTextMuted
+        GroupState.DONE -> Icons.Filled.Check to AccentEmerald
+        GroupState.PARTIAL -> Icons.Filled.Remove to AccentBlue
+        GroupState.EXCLUDED -> Icons.Filled.Block to ZincTextMuted
+        GroupState.EMPTY -> Icons.Outlined.RadioButtonUnchecked to ZincTextMuted
     }
     Icon(imageVector = icon, contentDescription = null, tint = tint, modifier = Modifier.size(16.dp))
 }
-
-// ── LeafRow ───────────────────────────────────────────────────────────────────────────────────
-//
-// A single checkable task leaf. Tap to toggle done/pending; long-press opens the action menu
-// (set quantity, mark N/A). The checkbox bounces subtly on completion and the label fades +
-// strikes through when done.
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -1272,7 +1363,7 @@ private fun LeafRow(
                     .border(2.dp, if (done) AccentEmerald else ZincBorder, RoundedCornerShape(6.dp)),
                 contentAlignment = Alignment.Center
             ) {
-                AnimatedVisibility(
+                androidx.compose.animation.AnimatedVisibility(
                     visible = done,
                     enter = fadeIn(tween(120)) + scaleIn(tween(120), initialScale = 0.6f),
                     exit = fadeOut(tween(80)) + scaleOut(tween(80), targetScale = 0.6f)
@@ -1287,6 +1378,7 @@ private fun LeafRow(
             }
         }
         Spacer(Modifier.width(12.dp))
+        // Crossfade between plain and struck-through text: at rest only one Text node exists.
         Crossfade(
             targetState = done,
             animationSpec = tween(200),
@@ -1295,8 +1387,7 @@ private fun LeafRow(
             Text(
                 text = title,
                 color = labelColor,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Normal,
+                fontSize = 15.sp,
                 textDecoration = if (isDone) TextDecoration.LineThrough else TextDecoration.None
             )
         }
@@ -1314,6 +1405,12 @@ private fun LeafRow(
     }
 }
 
+/**
+ * Long-press menu for a single leaf task: toggle "doesn't apply" and set a quantity greater than
+ * one (e.g. "2 lectures today"). A plain Material3 dialog is enough here - this is an infrequent,
+ * deliberate action, not part of the screen's everyday tap-to-check flow that warrants bespoke
+ * animation the way the bottom bar and checkbox do.
+ */
 @Composable
 private fun LeafActionMenu(
     title: String,
