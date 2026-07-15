@@ -33,7 +33,7 @@ class ReportViewModel(
     private val _tree = MutableStateFlow<List<BacklogNode>>(emptyList())
     val tree: StateFlow<List<BacklogNode>> = _tree.asStateFlow()
 
-    private val _loading = MutableStateFlow(true)
+    private val _loading = MutableStateFlow(false)
     val loading: StateFlow<Boolean> = _loading.asStateFlow()
 
     private val _selectedTask = MutableStateFlow<LeafBacklog?>(null)
@@ -42,13 +42,22 @@ class ReportViewModel(
     private val _pendingDates = MutableStateFlow<List<LocalDate>>(emptyList())
     val pendingDates: StateFlow<List<LocalDate>> = _pendingDates.asStateFlow()
 
-    private val today: LocalDate = dateIntegrityManager.currentState().today ?: LocalDate.now()
+    // Today as confirmed by the date-integrity system. Null means no sync has happened yet.
+    // Never falls back to LocalDate.now() - the backlog must only count days the user has
+    // explicitly confirmed, so an unsynced device shows a "sync required" prompt instead of
+    // silently computing backlog against the phone's wall clock.
+    private val _today = MutableStateFlow<LocalDate?>(dateIntegrityManager.currentState().today)
+    val today: StateFlow<LocalDate?> = _today.asStateFlow()
 
     init {
-        refresh()
+        // Only load backlog if a confirmed date is already available. If the user syncs on the
+        // calendar screen and then navigates here, the ViewModel is created fresh with the
+        // already-stored synced date - no second sync needed.
+        if (_today.value != null) refresh()
     }
 
     private fun refresh() {
+        val today = _today.value ?: return
         viewModelScope.launch {
             _loading.value = true
             val throughDate = today.toString()
@@ -58,7 +67,9 @@ class ReportViewModel(
                 .coerceAtLeast(0)
                 .toInt()
             val pendingByLeaf = repository.backlogByLeaf(throughDate, trackedDayCount)
-            _tree.value = TaskCatalog.sections.map { section -> buildSectionNode(section.title, section.key, section.children, pendingByLeaf) }
+            _tree.value = TaskCatalog.sections.map { section ->
+                buildSectionNode(section.title, section.key, section.children, pendingByLeaf)
+            }
             _loading.value = false
         }
     }
@@ -98,6 +109,7 @@ class ReportViewModel(
 
     /** Opens the drill-down list of specific dates a leaf is still outstanding on. */
     fun selectTask(leaf: LeafBacklog) {
+        val today = _today.value ?: return
         _selectedTask.value = leaf
         viewModelScope.launch {
             _pendingDates.value = repository.pendingDatesForTask(leaf.taskKey, today.toString())
