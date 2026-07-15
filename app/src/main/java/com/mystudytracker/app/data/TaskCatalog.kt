@@ -58,7 +58,7 @@ data class SectionDefinition(
  * The fixed catalog of sections/tasks for NEET 2027 prep, shown in this exact order on the
  * checklist screen. This is the single source of truth for the checklist UI *and* for every full
  * task key stored in [DailyTaskState] (a full key is the dot-joined path of node keys from section
- * down to leaf, e.g. "lectures.chemistry.organic" or "tests.partial.chemistryCombined.analysis").
+ * down to leaf, e.g. "lectures.chemistry.organic" or "tests.test.partial.physics.test").
  *
  * Because per-day state lives in a normalized table keyed by these path strings (see
  * [DailyTaskState]) rather than one fixed Room column per task, changing this catalog - adding,
@@ -87,22 +87,19 @@ object TaskCatalog {
         )
     )
 
-    /** One test type (e.g. "Physics", "Chemistry Combined") - always a Test + Analysis pair. */
-    private fun testType(key: String, title: String): TaskGroup =
-        TaskGroup(key, title, listOf(TaskLeaf("test", "Test"), TaskLeaf("analysis", "Analysis")))
+    /** One test-type subject (e.g. "Physics") - a single trackable leaf. */
+    private fun testTypeLeaf(key: String, title: String): TaskLeaf = TaskLeaf(key, title)
 
-    /** The 8 test-type rows shared by both Partial and Full Syllabus test groups. "Combined" here
-     *  is a real, distinct exam type (questions drawn from the whole subject) - a sibling leaf-group,
-     *  not a parent of Physical/Organic/Inorganic or Botany/Zoology. */
+    /** The 8 test-type subject leaves shared by both Test and Test Analysis groups. */
     private fun testTypeRows(): List<CatalogNode> = listOf(
-        testType("physics", "Physics"),
-        testType("physicalChemistry", "Physical Chemistry"),
-        testType("organicChemistry", "Organic Chemistry"),
-        testType("inorganicChemistry", "Inorganic Chemistry"),
-        testType("chemistryCombined", "Chemistry Combined"),
-        testType("botany", "Botany"),
-        testType("zoology", "Zoology"),
-        testType("biologyCombined", "Biology Combined")
+        testTypeLeaf("physics", "Physics"),
+        testTypeLeaf("physicalChemistry", "Physical Chemistry"),
+        testTypeLeaf("organicChemistry", "Organic Chemistry"),
+        testTypeLeaf("inorganicChemistry", "Inorganic Chemistry"),
+        testTypeLeaf("chemistryCombined", "Chemistry Combined"),
+        testTypeLeaf("botany", "Botany"),
+        testTypeLeaf("zoology", "Zoology"),
+        testTypeLeaf("biologyCombined", "Biology Combined")
     )
 
     val sections: List<SectionDefinition> = listOf(
@@ -171,8 +168,6 @@ object TaskCatalog {
             icon = Icons.Outlined.MenuBook,
             iconTint = Color(0xFFA3E635),
             children = subjectChildren(),
-            // Same scope rule as Practice: current chapter on weekdays, current + previous chapter
-            // on alternate Sundays, all previous chapters covered on the other Sundays.
             ruleProvider = { date -> DateRules.practiceRule(date) }
         ),
         SectionDefinition(
@@ -181,14 +176,41 @@ object TaskCatalog {
             icon = Icons.Outlined.FactCheck,
             iconTint = Color(0xFFE879F9),
             children = listOf(
-                TaskGroup("partial", "Partial Tests", testTypeRows()),
-                TaskGroup("full", "Full Syllabus Tests", testTypeRows()),
-                testType("combined", "All Subjects Combined Full Syllabus Test")
+                // ── Test parent ───────────────────────────────────────────────────────────
+                // Groups: Partial Tests, Full Syllabus Tests, and All Subjects Combined.
+                // Each contains the 8 subject leaves (one check per subject per test).
+                TaskGroup(
+                    key = "test",
+                    title = "Test",
+                    children = listOf(
+                        TaskGroup("partial", "Partial Tests", testTypeRows()),
+                        TaskGroup("full", "Full Syllabus Tests", testTypeRows()),
+                        TaskGroup(
+                            "combined", "All Subjects Combined Full Syllabus Test",
+                            listOf(testTypeLeaf("allSubjects", "All Subjects Combined"))
+                        )
+                    )
+                ),
+                // ── Test Analysis parent ──────────────────────────────────────────────────
+                // Mirrors the Test parent exactly - same structure, separate tracking.
+                // Used to record whether the analysis/review of each test was completed.
+                TaskGroup(
+                    key = "testAnalysis",
+                    title = "Test Analysis",
+                    children = listOf(
+                        TaskGroup("partial", "Partial Tests", testTypeRows()),
+                        TaskGroup("full", "Full Syllabus Tests", testTypeRows()),
+                        TaskGroup(
+                            "combined", "All Subjects Combined Full Syllabus Test",
+                            listOf(testTypeLeaf("allSubjects", "All Subjects Combined"))
+                        )
+                    )
+                )
             )
         )
     )
 
-    /** Every leaf's full dot-joined key, e.g. "tests.partial.chemistryCombined.analysis". */
+    /** Every leaf's full dot-joined key, e.g. "tests.test.partial.physics". */
     val allLeafKeys: List<String> by lazy {
         sections.flatMap { section -> leafKeysUnder(section.children, section.key) }
     }
