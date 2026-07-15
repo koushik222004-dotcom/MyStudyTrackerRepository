@@ -1137,10 +1137,10 @@ private fun SectionCard(
             }
         }
 
-        // Hairline divider between header and children
         HorizontalDivider(
-            color = ZincBorder.copy(alpha = 0.5f),
-            thickness = 0.5.dp
+            color = ZincBorder.copy(alpha = 0.3f),
+            thickness = 0.5.dp,
+            modifier = Modifier.padding(horizontal = 16.dp)
         )
 
         // Symmetric vertical padding so every item — including the last one — has equal
@@ -1154,9 +1154,9 @@ private fun SectionCard(
                 // Thin separator between siblings (not after last)
                 if (index < section.children.lastIndex) {
                     HorizontalDivider(
-                        color = ZincBorder.copy(alpha = 0.25f),
+                        color = ZincBorder.copy(alpha = 0.3f),
                         thickness = 0.5.dp,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 1.dp)
+                        modifier = Modifier.padding(horizontal = 16.dp)
                     )
                 }
             }
