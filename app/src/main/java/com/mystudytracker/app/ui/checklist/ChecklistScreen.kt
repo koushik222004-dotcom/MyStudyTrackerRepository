@@ -1055,8 +1055,8 @@ private data class ChecklistActions(
 // Depth-based child container shading: each level gets a progressively darker surface so
 // nested stacks read as distinct without indentation lines or explicit connectors.
 private fun childContainerColor(depth: Int): Color = when (depth) {
-    0    -> Color(0xFF09090B) // ZincBackground — clear contrast against ZincSurface card
-    else -> Color(0xFF000000) // Pure black — clear contrast against depth-0 container
+    0    -> Color(0xFF111113) // Subtle step down from ZincSurface card (0xFF18181B)
+    else -> Color(0xFF080809) // Subtle step down from depth-0
 }
 
 @OptIn(ExperimentalFoundationApi::class)
