@@ -8,7 +8,9 @@ import androidx.lifecycle.viewModelScope
 import com.mystudytracker.app.data.DailyProgress
 import com.mystudytracker.app.data.ProgressRepository
 import com.mystudytracker.app.util.DateIntegrityManager
+import com.mystudytracker.app.util.DateRules
 import java.time.LocalDate
+import java.time.temporal.ChronoUnit
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -19,7 +21,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class CalendarViewModel(
-    repository: ProgressRepository,
+    private val repository: ProgressRepository,
     private val dateIntegrityManager: DateIntegrityManager
 ) : ViewModel() {
 
@@ -55,8 +57,18 @@ class CalendarViewModel(
     private val _syncFailed = MutableStateFlow(false)
     val syncFailed: StateFlow<Boolean> = _syncFailed.asStateFlow()
 
+    // Total pending backlog units across all tasks, computed through yesterday (today excluded).
+    // Null when no date has been synced yet. Used by the Backlog Report button to show a
+    // "No Backlogs ✓" green state when the user is fully caught up.
+    private val _totalBacklogUnits = MutableStateFlow<Int?>(null)
+    val totalBacklogUnits: StateFlow<Int?> = _totalBacklogUnits.asStateFlow()
+
     init {
         refreshFromClock()
+        // Recompute backlog total whenever the confirmed date changes (after sync or on first init).
+        viewModelScope.launch {
+            _today.collect { today -> recomputeBacklog(today) }
+        }
     }
 
     /** Cheap, no-network recompute of "today" from anchor + elapsed uptime. Safe to call anytime. */
@@ -65,6 +77,29 @@ class CalendarViewModel(
         _today.value = state.today
         _lastSyncedLabel.value = state.lastSyncedLabel
         _rebootDetected.value = state.rebootDetected
+    }
+
+    /**
+     * Computes the total pending backlog units through yesterday (today is excluded — it is still
+     * "in progress"). Sets [_totalBacklogUnits] to null when no date is confirmed, or 0 when fully
+     * caught up, or the actual sum otherwise.
+     */
+    private suspend fun recomputeBacklog(today: LocalDate?) {
+        if (today == null) {
+            _totalBacklogUnits.value = null
+            return
+        }
+        val yesterday = today.minusDays(1)
+        if (yesterday.isBefore(DateRules.START_DATE)) {
+            _totalBacklogUnits.value = 0
+            return
+        }
+        val throughDate = yesterday.toString()
+        val trackedDayCount = ChronoUnit.DAYS.between(DateRules.START_DATE, today)
+            .coerceAtLeast(0)
+            .toInt()
+        val pendingByLeaf = repository.backlogByLeaf(throughDate, trackedDayCount)
+        _totalBacklogUnits.value = pendingByLeaf.values.sum()
     }
 
     /** Explicit, user-triggered sync only. Never called automatically. */
@@ -84,10 +119,7 @@ class CalendarViewModel(
                 delay(MIN_SYNC_DISPLAY_MS - elapsed)
             }
             // Clear the "syncing" flag as soon as the result is known, before showing the
-            // follow-up success/failure indicator. Previously this stayed true through the whole
-            // follow-up delay below, so the "syncing" branch in the UI's label/icon logic took
-            // priority the entire time and completely masked both the success checkmark and the
-            // failure warning - a failed sync looked identical to a successful one.
+            // follow-up success/failure indicator.
             _syncing.value = false
             when (result) {
                 is DateIntegrityManager.SyncResult.Success -> {

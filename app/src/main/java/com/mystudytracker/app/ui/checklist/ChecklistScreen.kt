@@ -53,7 +53,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
@@ -69,6 +68,8 @@ import androidx.compose.material.icons.outlined.RadioButtonUnchecked
 import androidx.compose.material.icons.outlined.Videocam
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
@@ -1122,14 +1123,18 @@ private fun SectionCard(
                     )
                 }
             }
-            // Checkbox tap cascades check/uncheck on all leaves; row tap does same for sections
-            // since they are always fully visible (no collapse at section level).
-            UnifiedCheckbox(
-                state = sectionState,
-                modifier = Modifier
-                    .clickable(enabled = !locked) { actions.toggleGroup(sectionLeafKeys) }
-                    .padding(4.dp)
-            )
+            // Checkbox — right-edge anchored; grows inward so its trailing edge never shifts.
+            Box(
+                modifier = Modifier.widthIn(min = 52.dp),
+                contentAlignment = Alignment.CenterEnd
+            ) {
+                UnifiedCheckbox(
+                    state = sectionState,
+                    modifier = Modifier
+                        .clickable(enabled = !locked) { actions.toggleGroup(sectionLeafKeys) }
+                        .padding(4.dp)
+                )
+            }
         }
 
         // Hairline divider between header and children
@@ -1225,13 +1230,8 @@ private fun GroupRow(
                 .padding(vertical = 10.dp, horizontal = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = node.title,
-                color = ZincTextPrimary,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Medium,
-                modifier = Modifier.weight(1f)
-            )
+            // Leading chevron indicates expand/collapse — anchored on the left so the title and
+            // checkbox positions are consistent across groups at every depth level.
             Icon(
                 imageVector = Icons.Filled.ChevronRight,
                 contentDescription = if (expanded) "Collapse" else "Expand",
@@ -1240,15 +1240,28 @@ private fun GroupRow(
                     .size(15.dp)
                     .rotate(chevronRotation)
             )
-            Spacer(Modifier.width(8.dp))
-            // Checkbox is separately clickable: tap it to cascade check/uncheck without
-            // collapsing the group. Long-pressing the row (handled on Row above) cascades N/A.
-            UnifiedCheckbox(
-                state = aggregateState(leafKeys, taskStates),
-                modifier = Modifier
-                    .clickable(enabled = !locked) { actions.toggleGroup(leafKeys) }
-                    .padding(4.dp)
+            Spacer(Modifier.width(6.dp))
+            Text(
+                text = node.title,
+                color = ZincTextPrimary,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Normal,
+                modifier = Modifier.weight(1f)
             )
+            Spacer(Modifier.width(8.dp))
+            // Checkbox — right-edge anchored. Tap it to cascade check/uncheck independently
+            // from the expand/collapse tap on the row. Long-press (on Row above) cascades N/A.
+            Box(
+                modifier = Modifier.widthIn(min = 52.dp),
+                contentAlignment = Alignment.CenterEnd
+            ) {
+                UnifiedCheckbox(
+                    state = aggregateState(leafKeys, taskStates),
+                    modifier = Modifier
+                        .clickable(enabled = !locked) { actions.toggleGroup(leafKeys) }
+                        .padding(4.dp)
+                )
+            }
         }
 
         // Children container — shaded background = child stack visual hierarchy
@@ -1263,7 +1276,7 @@ private fun GroupRow(
                     .padding(top = 4.dp, bottom = 6.dp)
                     .clip(RoundedCornerShape(12.dp))
                     .background(childContainerColor(depth))
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                    .padding(vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(0.dp)
             ) {
                 node.children.forEachIndexed { i, child ->
@@ -1289,25 +1302,44 @@ private fun GroupRow(
 }
 
 /**
- * Unified 22 dp square checkbox used for both groups and leaves, always on the trailing edge.
- * Group states derive from all leaves underneath; leaf states come from their own stored state.
- * Same shape and position for every row type so the UI reads as one consistent system.
- * [clickable] - optional additional Modifier applied to the outer Box (used for groups where
- * tapping the checkbox cascades check/uncheck independently from tapping the row).
+ * Unified checkbox for both groups and leaves, always on the trailing right edge.
+ * EXCLUDED uses a variable-width "N/A" text pill so it matches the leaf N/A display exactly.
+ * All other states use a fixed 22 dp square that matches the leaf boolean checkbox.
  */
 @Composable
 private fun UnifiedCheckbox(state: GroupState, modifier: Modifier = Modifier) {
+    // EXCLUDED uses a variable-width pill — handle it first so the fixed-square path below
+    // is not reached for this state and the size contract stays clean.
+    if (state == GroupState.EXCLUDED) {
+        Box(
+            modifier = modifier
+                .height(22.dp)
+                .clip(RoundedCornerShape(6.dp))
+                .background(ZincSurfaceVariant)
+                .border(2.dp, ZincBorder.copy(alpha = 0.5f), RoundedCornerShape(6.dp))
+                .padding(horizontal = 6.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "N/A",
+                color = ZincTextMuted,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.SemiBold,
+                letterSpacing = 0.3.sp
+            )
+        }
+        return
+    }
+
     val bgColor = when (state) {
-        GroupState.DONE     -> AccentEmerald
-        GroupState.PARTIAL  -> AccentBlue.copy(alpha = 0.13f)
-        GroupState.EXCLUDED -> ZincSurfaceVariant
-        GroupState.EMPTY    -> Color.Transparent
+        GroupState.DONE    -> AccentEmerald
+        GroupState.PARTIAL -> AccentBlue.copy(alpha = 0.13f)
+        else               -> Color.Transparent // EMPTY
     }
     val borderColor = when (state) {
-        GroupState.DONE     -> AccentEmerald
-        GroupState.PARTIAL  -> AccentBlue
-        GroupState.EXCLUDED -> ZincBorder.copy(alpha = 0.5f)
-        GroupState.EMPTY    -> ZincBorder
+        GroupState.DONE    -> AccentEmerald
+        GroupState.PARTIAL -> AccentBlue
+        else               -> ZincBorder // EMPTY
     }
     Box(
         modifier = modifier
@@ -1330,13 +1362,7 @@ private fun UnifiedCheckbox(state: GroupState, modifier: Modifier = Modifier) {
                 tint = AccentBlue,
                 modifier = Modifier.size(13.dp)
             )
-            GroupState.EXCLUDED -> Icon(
-                imageVector = Icons.Filled.Block,
-                contentDescription = null,
-                tint = ZincTextMuted,
-                modifier = Modifier.size(12.dp)
-            )
-            GroupState.EMPTY -> { /* nothing inside */ }
+            else -> { /* EMPTY — nothing inside */ }
         }
     }
 }
@@ -1397,63 +1423,68 @@ private fun LeafRow(
                 textDecoration = if (isDone) TextDecoration.LineThrough else TextDecoration.None
             )
         }
-        Spacer(Modifier.width(12.dp))
-        // Checkbox — trailing, same 22 dp square as the group UnifiedCheckbox so all rows
-        // in the list share one visual language. Leaves show their own individual state rather
-        // than a derived aggregate. The tap area is the whole Row so this box is display-only.
-        when {
-            notApplicable -> Box(
-                modifier = Modifier
-                    .height(22.dp)
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(ZincSurfaceVariant)
-                    .border(2.dp, ZincBorder.copy(alpha = 0.6f), RoundedCornerShape(6.dp))
-                    .padding(horizontal = 7.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "N/A",
-                    color = ZincTextMuted,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
-            target > 1 -> Box(
-                modifier = Modifier
-                    .height(22.dp)
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(if (done) AccentEmerald else ZincSurfaceVariant)
-                    .border(2.dp, if (done) AccentEmerald else ZincBorder, RoundedCornerShape(6.dp))
-                    .padding(horizontal = 7.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "$completed/$target",
-                    color = if (done) ZincBackground else ZincTextPrimary,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
-            else -> Box(
-                modifier = Modifier
-                    .size(22.dp)
-                    .scale(checkboxScale.value)
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(if (done) AccentEmerald else Color.Transparent)
-                    .border(2.dp, if (done) AccentEmerald else ZincBorder, RoundedCornerShape(6.dp)),
-                contentAlignment = Alignment.Center
-            ) {
-                androidx.compose.animation.AnimatedVisibility(
-                    visible = done,
-                    enter = fadeIn(tween(120)) + scaleIn(tween(120), initialScale = 0.6f),
-                    exit = fadeOut(tween(80)) + scaleOut(tween(80), targetScale = 0.6f)
+        Spacer(Modifier.width(8.dp))
+        // Checkbox — right-edge anchored via widthIn(min). The trailing edge stays pinned even
+        // when content grows wide (e.g. "67/100"), which grows inward into the min-width box.
+        // Tap area is the whole Row; this box is display-only.
+        Box(
+            modifier = Modifier.widthIn(min = 52.dp),
+            contentAlignment = Alignment.CenterEnd
+        ) {
+            when {
+                notApplicable -> Box(
+                    modifier = Modifier
+                        .height(22.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(ZincSurfaceVariant)
+                        .border(2.dp, ZincBorder.copy(alpha = 0.6f), RoundedCornerShape(6.dp))
+                        .padding(horizontal = 7.dp),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = Icons.Filled.Check,
-                        contentDescription = null,
-                        tint = ZincBackground,
-                        modifier = Modifier.size(14.dp)
+                    Text(
+                        text = "N/A",
+                        color = ZincTextMuted,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.SemiBold
                     )
+                }
+                target > 1 -> Box(
+                    modifier = Modifier
+                        .height(22.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(if (done) AccentEmerald else ZincSurfaceVariant)
+                        .border(2.dp, if (done) AccentEmerald else ZincBorder, RoundedCornerShape(6.dp))
+                        .padding(horizontal = 7.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "$completed/$target",
+                        color = if (done) ZincBackground else ZincTextPrimary,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+                else -> Box(
+                    modifier = Modifier
+                        .size(22.dp)
+                        .scale(checkboxScale.value)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(if (done) AccentEmerald else Color.Transparent)
+                        .border(2.dp, if (done) AccentEmerald else ZincBorder, RoundedCornerShape(6.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = done,
+                        enter = fadeIn(tween(120)) + scaleIn(tween(120), initialScale = 0.6f),
+                        exit = fadeOut(tween(80)) + scaleOut(tween(80), targetScale = 0.6f)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Check,
+                            contentDescription = null,
+                            tint = ZincBackground,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
                 }
             }
         }
@@ -1472,10 +1503,9 @@ private fun LeafRow(
 }
 
 /**
- * Long-press menu for a single leaf task: toggle "Not Applicable" and set a quantity greater than
- * one (e.g. "2 lectures today"). A plain Material3 dialog is enough here - this is an infrequent,
- * deliberate action, not part of the screen's everyday tap-to-check flow that warrants bespoke
- * animation the way the bottom bar and checkbox do.
+ * Long-press action sheet for a single leaf task: toggle N/A and set a quantity > 1
+ * (e.g. "3 DPP sessions today"). Rendered as a modern bottom-sheet style dialog —
+ * tapping the dark scrim behind the panel dismisses without saving any change.
  */
 @Composable
 private fun LeafActionMenu(
@@ -1488,64 +1518,167 @@ private fun LeafActionMenu(
 ) {
     var quantity by remember(targetCount) { mutableStateOf(targetCount) }
 
-    androidx.compose.material3.AlertDialog(
+    Dialog(
         onDismissRequest = onDismiss,
-        containerColor = ZincSurface,
-        title = { Text(text = title, color = ZincTextPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold) },
-        text = {
-            Column {
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.BottomCenter
+        ) {
+            // Scrim — tapping outside the panel dismisses without saving
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.48f))
+                    .clickable(
+                        indication = null,
+                        interactionSource = remember { MutableInteractionSource() }
+                    ) { onDismiss() }
+            )
+
+            // Panel — slides up from the bottom edge
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+                    .background(ZincSurface)
+                    .navigationBarsPadding()
+                    .padding(horizontal = 20.dp)
+                    .padding(top = 14.dp, bottom = 24.dp)
+            ) {
+                // Drag handle
+                Box(
+                    modifier = Modifier
+                        .width(36.dp)
+                        .height(4.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(ZincBorder)
+                        .align(Alignment.CenterHorizontally)
+                )
+                Spacer(Modifier.height(18.dp))
+
+                // Task title
+                Text(
+                    text = title,
+                    color = ZincTextPrimary,
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Spacer(Modifier.height(20.dp))
+
+                // N/A toggle row
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(10.dp))
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(
+                            if (notApplicable) AccentBlue.copy(alpha = 0.08f)
+                            else ZincSurfaceVariant
+                        )
+                        .border(
+                            width = 1.dp,
+                            color = if (notApplicable) AccentBlue.copy(alpha = 0.3f)
+                                    else Color.Transparent,
+                            shape = RoundedCornerShape(14.dp)
+                        )
                         .clickable { onToggleNotApplicable(); onDismiss() }
-                        .padding(vertical = 10.dp),
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        text = if (notApplicable) "Remove Not Applicable" else "Mark as Not Applicable",
+                        text = if (notApplicable) "Clear N/A" else "Set as N/A",
+                        color = if (notApplicable) AccentBlue else ZincTextPrimary,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                    if (notApplicable) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(AccentBlue.copy(alpha = 0.13f))
+                                .padding(horizontal = 8.dp, vertical = 3.dp)
+                        ) {
+                            Text(
+                                text = "Active",
+                                color = AccentBlue,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(22.dp))
+
+                // Quantity section
+                Text(
+                    text = "QUANTITY",
+                    color = ZincTextMuted,
+                    fontSize = 10.sp,
+                    letterSpacing = 1.sp,
+                    fontWeight = FontWeight.Medium
+                )
+                Spacer(Modifier.height(14.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(ZincSurfaceVariant)
+                            .border(1.dp, ZincBorder.copy(alpha = 0.4f), RoundedCornerShape(14.dp))
+                            .clickable { if (quantity > 1) quantity-- },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(text = "−", color = ZincTextPrimary, fontSize = 22.sp, fontWeight = FontWeight.Light)
+                    }
+                    Spacer(Modifier.width(32.dp))
+                    Text(
+                        text = "$quantity",
                         color = ZincTextPrimary,
-                        fontSize = 14.sp
+                        fontSize = 34.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(Modifier.width(32.dp))
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(ZincSurfaceVariant)
+                            .border(1.dp, ZincBorder.copy(alpha = 0.4f), RoundedCornerShape(14.dp))
+                            .clickable { quantity++ },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(text = "+", color = ZincTextPrimary, fontSize = 22.sp, fontWeight = FontWeight.Light)
+                    }
+                }
+
+                Spacer(Modifier.height(30.dp))
+
+                // Save button
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(AccentBlue)
+                        .clickable { onSetQuantity(quantity); onDismiss() }
+                        .padding(vertical = 16.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Save",
+                        color = Color.White,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold
                     )
                 }
-                Spacer(Modifier.height(4.dp))
-                HorizontalDivider(color = ZincBorder, thickness = 1.dp)
-                Spacer(Modifier.height(12.dp))
-                Text(text = "QUANTITY", color = ZincTextMuted, fontSize = 10.sp, letterSpacing = 1.sp, fontWeight = FontWeight.Medium)
-                Spacer(Modifier.height(8.dp))
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    IconButton(
-                        onClick = { if (quantity > 1) quantity -= 1 },
-                        modifier = Modifier.size(32.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier.size(28.dp).clip(RoundedCornerShape(8.dp)).background(ZincSurfaceVariant),
-                            contentAlignment = Alignment.Center
-                        ) { Text(text = "-", color = ZincTextPrimary, fontSize = 16.sp) }
-                    }
-                    Text(text = "$quantity", color = ZincTextPrimary, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-                    IconButton(
-                        onClick = { quantity += 1 },
-                        modifier = Modifier.size(32.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier.size(28.dp).clip(RoundedCornerShape(8.dp)).background(ZincSurfaceVariant),
-                            contentAlignment = Alignment.Center
-                        ) { Text(text = "+", color = ZincTextPrimary, fontSize = 16.sp) }
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            androidx.compose.material3.TextButton(onClick = { onSetQuantity(quantity); onDismiss() }) {
-                Text(text = "Save Quantity", color = AccentBlue)
-            }
-        },
-        dismissButton = {
-            androidx.compose.material3.TextButton(onClick = onDismiss) {
-                Text(text = "Cancel", color = ZincTextMuted)
             }
         }
-    )
+    }
 }

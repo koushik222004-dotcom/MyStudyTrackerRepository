@@ -2,6 +2,7 @@ package com.mystudytracker.app.data
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Assignment
+import androidx.compose.material.icons.outlined.Category
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.EditNote
 import androidx.compose.material.icons.outlined.FactCheck
@@ -58,7 +59,7 @@ data class SectionDefinition(
  * The fixed catalog of sections/tasks for NEET 2027 prep, shown in this exact order on the
  * checklist screen. This is the single source of truth for the checklist UI *and* for every full
  * task key stored in [DailyTaskState] (a full key is the dot-joined path of node keys from section
- * down to leaf, e.g. "lectures.chemistry.organic" or "tests.test.partial.physics").
+ * down to leaf, e.g. "lectures.chemistry.organic" or "tests.test.full.physicalChemistry").
  *
  * Because per-day state lives in a normalized table keyed by these path strings (see
  * [DailyTaskState]) rather than one fixed Room column per task, changing this catalog - adding,
@@ -87,18 +88,36 @@ object TaskCatalog {
         )
     )
 
-    /** 8 plain subject test leaves shared by both the Test and Test Analysis groups.
-     *  "Combined" here is a real, distinct exam type (questions drawn from the whole subject) -
-     *  a sibling leaf, not a parent of Physical/Organic/Inorganic or Botany/Zoology. */
-    private fun testSubjectLeaves(): List<CatalogNode> = listOf(
+    /**
+     * 8 subject leaves for Partial Syllabus Tests. Keys are stable identifiers — only the
+     * displayed titles differ from a plain "Combined" label to the explicit subject list.
+     */
+    private fun testPartialLeaves(): List<CatalogNode> = listOf(
         TaskLeaf("physics", "Physics"),
         TaskLeaf("physicalChemistry", "Physical Chemistry"),
         TaskLeaf("organicChemistry", "Organic Chemistry"),
         TaskLeaf("inorganicChemistry", "Inorganic Chemistry"),
-        TaskLeaf("chemistryCombined", "Chemistry Combined"),
+        TaskLeaf("chemistryCombined", "Chemistry (Physical + Organic + Inorganic)"),
         TaskLeaf("botany", "Botany"),
         TaskLeaf("zoology", "Zoology"),
-        TaskLeaf("biologyCombined", "Biology Combined")
+        TaskLeaf("biologyCombined", "Biology (Botany + Zoology)")
+    )
+
+    /**
+     * Full Syllabus Test leaves: same 8 as partial, plus the combined all-subjects leaf.
+     */
+    private fun testFullLeaves(): List<CatalogNode> = testPartialLeaves() + listOf(
+        TaskLeaf("fullSyllabus", "Full Syllabus (Physics + Chemistry + Biology)")
+    )
+
+    /** Shared test subtree used by both Test and Test Analysis groups. */
+    private fun testSubtree(groupKey: String, groupTitle: String): TaskGroup = TaskGroup(
+        key = groupKey,
+        title = groupTitle,
+        children = listOf(
+            TaskGroup("partial", "Partial Syllabus Test", testPartialLeaves()),
+            TaskGroup("full", "Full Syllabus Test", testFullLeaves())
+        )
     )
 
     val sections: List<SectionDefinition> = listOf(
@@ -143,8 +162,9 @@ object TaskCatalog {
             title = "Post-Lecture Revision",
             icon = Icons.Outlined.NightsStay,
             iconTint = Color(0xFF818CF8),
-            children = subjectChildren(),
-            ruleProvider = { "Today's Lecture" }
+            children = subjectChildren()
+            // No ruleProvider — Post-Lecture Revision always covers today's lecture,
+            // so a fixed label adds no information and is omitted like Lectures and DPP.
         ),
         SectionDefinition(
             key = "homework",
@@ -155,7 +175,7 @@ object TaskCatalog {
         ),
         SectionDefinition(
             key = "practice",
-            title = "Practice",
+            title = "Question Practice",
             icon = Icons.Outlined.TrackChanges,
             iconTint = Color(0xFFFB923C),
             children = subjectChildren(),
@@ -163,12 +183,10 @@ object TaskCatalog {
         ),
         SectionDefinition(
             key = "reading",
-            title = "Reading",
+            title = "NCERT Reading",
             icon = Icons.Outlined.MenuBook,
             iconTint = Color(0xFFA3E635),
             children = subjectChildren(),
-            // Same scope rule as Practice: current chapter on weekdays, current + previous chapter
-            // on alternate Sundays, all previous chapters covered on the other Sundays.
             ruleProvider = { date -> DateRules.practiceRule(date) }
         ),
         SectionDefinition(
@@ -177,26 +195,20 @@ object TaskCatalog {
             icon = Icons.Outlined.FactCheck,
             iconTint = Color(0xFFE879F9),
             children = listOf(
-                // Test and Test Analysis are sibling parents so they can be tracked separately.
-                TaskGroup(
-                    "test", "Test", listOf(
-                        TaskGroup("partial", "Partial Tests", testSubjectLeaves()),
-                        TaskGroup("full", "Full Syllabus Tests", testSubjectLeaves()),
-                        TaskLeaf("combined", "All Subjects Full Syllabus Test")
-                    )
-                ),
-                TaskGroup(
-                    "analysis", "Test Analysis", listOf(
-                        TaskGroup("partial", "Partial Tests", testSubjectLeaves()),
-                        TaskGroup("full", "Full Syllabus Tests", testSubjectLeaves()),
-                        TaskLeaf("combined", "All Subjects Full Syllabus Test")
-                    )
-                )
+                testSubtree("test", "Test"),
+                testSubtree("analysis", "Test Analysis")
             )
+        ),
+        SectionDefinition(
+            key = "misc",
+            title = "Miscellaneous",
+            icon = Icons.Outlined.Category,
+            iconTint = Color(0xFF67E8F9),
+            children = subjectChildren()
         )
     )
 
-    /** Every leaf's full dot-joined key, e.g. "tests.test.partial.physics". */
+    /** Every leaf's full dot-joined key, e.g. "tests.test.full.physicalChemistry". */
     val allLeafKeys: List<String> by lazy {
         sections.flatMap { section -> leafKeysUnder(section.children, section.key) }
     }

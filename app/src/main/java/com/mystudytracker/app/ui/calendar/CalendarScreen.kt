@@ -96,6 +96,7 @@ fun CalendarScreen(
     val syncing by viewModel.syncing.collectAsState()
     val justSynced by viewModel.justSynced.collectAsState()
     val syncFailed by viewModel.syncFailed.collectAsState()
+    val totalBacklogUnits by viewModel.totalBacklogUnits.collectAsState()
 
     // Only used to pick which month is shown first - the actual "today" used for highlighting and
     // unlocking days always comes from the uptime-anchored tracker above, never the wall clock.
@@ -118,9 +119,7 @@ fun CalendarScreen(
     val today = trackedToday ?: DateRules.START_DATE.minusDays(1)
 
     // After a successful manual sync, jump the visible month back to whatever month the verified
-    // "today" now falls in - but only if the user isn't already looking at it. Reuses the exact
-    // same cursorMonth state that the prev/next arrows drive, so AnimatedContent below plays the
-    // identical slide transition regardless of what changed the month.
+    // "today" now falls in - but only if the user isn't already looking at it.
     LaunchedEffect(justSynced) {
         if (justSynced && trackedToday != null) {
             val syncedMonth = YearMonth.from(trackedToday).let {
@@ -146,7 +145,7 @@ fun CalendarScreen(
     ) {
         Spacer(Modifier.height(20.dp))
 
-        // Three-line masthead - the focal title of the screen, always first.
+        // Three-line masthead
         Column(
             modifier = Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally
@@ -181,8 +180,6 @@ fun CalendarScreen(
 
         Spacer(Modifier.height(14.dp))
 
-        // Sync status/action as a single centered pill - one cohesive tappable element instead of
-        // a stray button floating in a corner.
         Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
             SyncPill(
                 syncing = syncing,
@@ -194,13 +191,6 @@ fun CalendarScreen(
             )
         }
 
-        // Calendar block is vertically centered in the remaining space between the title above
-        // and the key below, so the screen doesn't feel top-heavy. Also scrollable: in
-        // portrait this area's content is always shorter than its allotted space so scrolling
-        // never engages and centering looks identical to before, but in landscape the day grid
-        // (sized off the much wider available width) can be taller than the remaining vertical
-        // space - without this, it would overflow past this block and overlap the key below
-        // instead of scaling down or scrolling.
         Column(
             modifier = Modifier
                 .weight(1f)
@@ -208,7 +198,6 @@ fun CalendarScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.Center
         ) {
-            // Month navigator
             val canGoNext = month.isBefore(endMonth)
             val canGoPrev = month.isAfter(startMonth)
             Row(
@@ -248,7 +237,6 @@ fun CalendarScreen(
 
             Spacer(Modifier.height(20.dp))
 
-            // Weekday header
             Row(modifier = Modifier.fillMaxWidth()) {
                 WEEKDAY_LABELS.forEach { label ->
                     Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
@@ -281,7 +269,8 @@ fun CalendarScreen(
             }
         }
 
-        ReportButton(onClick = onOpenReport)
+        // Backlog Report button — turns green and disabled when fully caught up.
+        ReportButton(totalBacklogUnits = totalBacklogUnits, onClick = onOpenReport)
         Spacer(Modifier.height(12.dp))
         KeyCard()
         Spacer(Modifier.height(20.dp))
@@ -289,30 +278,56 @@ fun CalendarScreen(
 }
 
 @Composable
-private fun ReportButton(onClick: () -> Unit) {
+private fun ReportButton(totalBacklogUnits: Int?, onClick: () -> Unit) {
+    // null = not synced yet (treat as interactive); 0 = all clear (green, disabled); >0 = has backlog
+    val allClear = totalBacklogUnits == 0
+    val interactive = !allClear
+
+    val bgColor = if (allClear) AccentEmerald.copy(alpha = 0.12f) else ZincSurface
+    val borderColor = if (allClear) AccentEmerald.copy(alpha = 0.4f) else Color.Transparent
+    val iconTint = if (allClear) AccentEmerald else AccentBlue
+    val labelColor = if (allClear) AccentEmerald else ZincTextPrimary
+    val labelText = if (allClear) "No Backlogs ✓" else "Backlog Report"
+    val trailingTint = if (allClear) AccentEmerald.copy(alpha = 0.5f) else ZincTextMuted
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(elevation = 6.dp, shape = RoundedCornerShape(16.dp))
+            .shadow(elevation = if (allClear) 0.dp else 6.dp, shape = RoundedCornerShape(16.dp))
             .clip(RoundedCornerShape(16.dp))
-            .background(ZincSurface)
-            .clickable { onClick() }
+            .background(bgColor)
+            .border(1.dp, borderColor, RoundedCornerShape(16.dp))
+            .then(if (interactive) Modifier.clickable { onClick() } else Modifier)
             .padding(horizontal = 16.dp, vertical = 14.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Icon(Icons.AutoMirrored.Filled.Assignment, contentDescription = null, tint = AccentBlue, modifier = Modifier.size(18.dp))
-            Text(text = "Backlog Report", color = ZincTextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+            Icon(
+                Icons.AutoMirrored.Filled.Assignment,
+                contentDescription = null,
+                tint = iconTint,
+                modifier = Modifier.size(18.dp)
+            )
+            Text(
+                text = labelText,
+                color = labelColor,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Medium
+            )
         }
-        Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = ZincTextMuted, modifier = Modifier.size(18.dp))
+        Icon(
+            Icons.Filled.ChevronRight,
+            contentDescription = null,
+            tint = trailingTint,
+            modifier = Modifier.size(18.dp)
+        )
     }
 }
 
 /**
  * Isolated in its own composable so recomposing unrelated screen state (sync pill, banner) never
- * forces the whole month grid to re-lay-out - only [month], [today], or [completedCounts]
- * actually changing triggers work here.
+ * forces the whole month grid to re-lay-out.
  */
 @Composable
 private fun CalendarGrid(
@@ -345,12 +360,6 @@ private fun CalendarGrid(
     }
 }
 
-/**
- * Single adaptive control that communicates every sync-related state through its own icon, tint,
- * and label - never-synced, syncing, just-succeeded, failed, and reboot-detected all render here
- * instead of a separate banner, so the pill's fixed size means nothing else on screen ever shifts
- * position when its state changes.
- */
 @Composable
 private fun SyncPill(
     syncing: Boolean,
@@ -360,18 +369,12 @@ private fun SyncPill(
     lastSyncedLabel: String?,
     onClick: () -> Unit
 ) {
-    // The spinner rotation is only ever shown while `syncing` is true (see `rotating` below), but
-    // rememberInfiniteTransition subscribes to the frame clock and keeps recomposing this
-    // composable every frame for as long as it's alive - regardless of whether `rotating` is
-    // currently true. Gating its creation on `syncing` means the pill sits fully idle (zero
-    // per-frame work) the other ~99% of the time it's on screen, which matters for an app whose
-    // whole design point is a lightweight, offline-first, battery-friendly daily check-in.
     val angle: Float = if (syncing) {
         val infiniteTransition = rememberInfiniteTransition(label = "syncRotation")
         val a by infiniteTransition.animateFloat(
             initialValue = 0f,
             targetValue = 360f,
-            animationSpec = infiniteRepeatable(tween(800, easing = LinearEasing), repeatMode = RepeatMode.Restart),
+            animationSpec = infiniteRepeatable(tween(800, easing = LinearEasing), RepeatMode.Restart),
             label = "syncAngle"
         )
         a
@@ -379,32 +382,13 @@ private fun SyncPill(
         0f
     }
 
-    // Failed and reboot-detected are deliberately different colors even though both are
-    // "attention" states - red means the sync you just attempted failed outright, amber means the
-    // date is merely unverified since a restart. Keeping them visually distinct avoids reading one
-    // as the other at a glance.
-    //
-    // Icon, tint, rotation, and label are bundled into ONE immutable value and driven through a
-    // single AnimatedContent, rather than the icon and text crossfading independently. They used
-    // to be two separate AnimatedContent-esque updates reading the same outer state, which meant
-    // the icon's crossfade animation (a few hundred ms) and the text's instant swap were not the
-    // same transition - so for a split second you could see the new label next to the old icon
-    // (e.g. "Synced" still paired with the spinning blue sync icon) before the icon caught up.
-    // Treating icon+label as one atomic snapshot inside a single AnimatedContent means they always
-    // appear and disappear together as a single entity.
-    // `syncing` must be checked before `rebootDetected` - an active sync attempt is a live,
-    // real-time state and should always visually override the stale "reboot happened, date
-    // unknown" flag from before the tap. Otherwise, tapping sync right after a reboot would show
-    // the amber "Sync Status: Unknown" state for the whole attempt (since rebootDetected doesn't
-    // clear until a sync actually succeeds) instead of the blue "Syncing..." spinner, making a
-    // real, in-progress attempt look like it never started before jumping straight to "Failed".
     val visualState = when {
-        justSynced -> SyncVisualState(Icons.Filled.Check, AccentEmerald, rotating = false, label = "Synced")
-        syncFailed -> SyncVisualState(Icons.Filled.WarningAmber, AccentRed, rotating = false, label = "Sync Failed")
-        syncing -> SyncVisualState(Icons.Filled.Sync, AccentBlue, rotating = true, label = "Syncing...")
-        rebootDetected -> SyncVisualState(Icons.Filled.WarningAmber, AccentAmber, rotating = false, label = "Sync Status: Unknown")
+        justSynced      -> SyncVisualState(Icons.Filled.Check, AccentEmerald, rotating = false, label = "Synced")
+        syncFailed      -> SyncVisualState(Icons.Filled.WarningAmber, AccentRed, rotating = false, label = "Sync Failed")
+        syncing         -> SyncVisualState(Icons.Filled.Sync, AccentBlue, rotating = true, label = "Syncing...")
+        rebootDetected  -> SyncVisualState(Icons.Filled.WarningAmber, AccentAmber, rotating = false, label = "Sync Status: Unknown")
         lastSyncedLabel == null -> SyncVisualState(Icons.Filled.Sync, AccentBlue, rotating = false, label = "Tap to Sync Date")
-        else -> SyncVisualState(Icons.Filled.Sync, AccentBlue, rotating = false, label = "Last synced: $lastSyncedLabel")
+        else            -> SyncVisualState(Icons.Filled.Sync, AccentBlue, rotating = false, label = "Last synced: $lastSyncedLabel")
     }
 
     Row(
@@ -438,7 +422,6 @@ private fun SyncPill(
     }
 }
 
-/** Bundles a sync pill's icon, tint, rotation flag, and label as one atomic snapshot - see [SyncPill]. */
 private data class SyncVisualState(
     val icon: ImageVector,
     val tint: Color,
@@ -460,19 +443,15 @@ private fun DayCell(
     if (status == DayStatus.OUTSIDE) return
 
     val (targetBackground, contentColor, borderColor) = when (status) {
-        DayStatus.FUTURE -> Triple(Color.Transparent, ZincTextPrimary, ZincBorder)
+        DayStatus.FUTURE           -> Triple(Color.Transparent, ZincTextPrimary, ZincBorder)
         DayStatus.TODAY_INCOMPLETE -> Triple(AccentBlue, Color.White, null)
-        DayStatus.TODAY_COMPLETE -> Triple(AccentEmerald, Color.White, null)
-        DayStatus.GREEN -> Triple(AccentEmerald.copy(alpha = 0.9f), Color(0xFF022C22), null)
-        DayStatus.YELLOW -> Triple(AccentAmber.copy(alpha = 0.9f), Color(0xFF451A03), null)
-        DayStatus.RED -> Triple(AccentRed.copy(alpha = 0.85f), Color(0xFFFEF2F2), null)
-        // Unreachable in practice - the early return above already exits for OUTSIDE. Kept only
-        // because DayStatus is an enum and this `when` must stay exhaustive.
-        DayStatus.OUTSIDE -> Triple(Color.Transparent, Color.Transparent, null)
+        DayStatus.TODAY_COMPLETE   -> Triple(AccentEmerald, Color.White, null)
+        DayStatus.GREEN            -> Triple(AccentEmerald.copy(alpha = 0.9f), Color(0xFF022C22), null)
+        DayStatus.YELLOW           -> Triple(AccentAmber.copy(alpha = 0.9f), Color(0xFF451A03), null)
+        DayStatus.RED              -> Triple(AccentRed.copy(alpha = 0.85f), Color(0xFFFEF2F2), null)
+        DayStatus.OUTSIDE          -> Triple(Color.Transparent, Color.Transparent, null)
     }
 
-    // Cross-fades between colors when a day's status actually changes (e.g. finishing the last
-    // task) - has no effect on first mount, so swiping to a new month never triggers a fade here.
     val background by animateColorAsState(targetValue = targetBackground, animationSpec = tween(200), label = "dayColor")
 
     Box(
@@ -512,10 +491,10 @@ private fun KeyCard() {
         )
         Spacer(Modifier.height(12.dp))
         val rows = listOf(
-            AccentBlue to "Today (incomplete)",
+            AccentBlue    to "Today (incomplete)",
             AccentEmerald to "Fully completed",
-            AccentAmber to "Partially completed",
-            AccentRed to "Nothing completed"
+            AccentAmber   to "Partially completed",
+            AccentRed     to "Nothing completed"
         )
         rows.chunked(2).forEach { pair ->
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -549,16 +528,9 @@ private fun KeyCard() {
     }
 }
 
-/**
- * Builds a 7-wide grid of weeks for [month], with null placeholders for leading/trailing empty
- * cells. Always returns exactly [WEEKS_PER_GRID] rows (padding with an extra all-null week when a
- * month only spans 5 calendar rows) so the grid's total height never changes between months - this
- * keeps the month navigator and everything below it from shifting position when switching months.
- */
 private fun buildWeeks(month: YearMonth): List<List<LocalDate?>> {
     val firstOfMonth = month.atDay(1)
     val daysInMonth = month.lengthOfMonth()
-    // LocalDate.dayOfWeek: MONDAY=1..SUNDAY=7. We want Sunday-first columns, so map SUNDAY -> 0.
     val startOffset = firstOfMonth.dayOfWeek.value % 7
 
     val cells = mutableListOf<LocalDate?>()

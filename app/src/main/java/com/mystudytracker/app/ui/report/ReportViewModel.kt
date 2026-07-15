@@ -50,9 +50,6 @@ class ReportViewModel(
     val today: StateFlow<LocalDate?> = _today.asStateFlow()
 
     init {
-        // Only load backlog if a confirmed date is already available. If the user syncs on the
-        // calendar screen and then navigates here, the ViewModel is created fresh with the
-        // already-stored synced date - no second sync needed.
         if (_today.value != null) refresh()
     }
 
@@ -60,12 +57,23 @@ class ReportViewModel(
         val today = _today.value ?: return
         viewModelScope.launch {
             _loading.value = true
-            val throughDate = today.toString()
-            // Every tracked day up to and including today counts toward "untouched day = pending",
-            // matching the calendar's convention that a day with no saved row is fully outstanding.
-            val trackedDayCount = (ChronoUnit.DAYS.between(DateRules.START_DATE, today) + 1)
+
+            // Backlog counts only past days — today is still "in progress" so it is excluded.
+            // throughDate is yesterday; trackedDayCount is the number of days from START_DATE
+            // up to and including yesterday (i.e. DAYS.between(START, today) with no +1).
+            val yesterday = today.minusDays(1)
+            if (yesterday.isBefore(DateRules.START_DATE)) {
+                // Edge case: synced on the very first day — no past days to report backlog for.
+                _tree.value = emptyList()
+                _loading.value = false
+                return@launch
+            }
+
+            val throughDate = yesterday.toString()
+            val trackedDayCount = ChronoUnit.DAYS.between(DateRules.START_DATE, today)
                 .coerceAtLeast(0)
                 .toInt()
+
             val pendingByLeaf = repository.backlogByLeaf(throughDate, trackedDayCount)
             _tree.value = TaskCatalog.sections.map { section ->
                 buildSectionNode(section.title, section.key, section.children, pendingByLeaf)
@@ -112,7 +120,10 @@ class ReportViewModel(
         val today = _today.value ?: return
         _selectedTask.value = leaf
         viewModelScope.launch {
-            _pendingDates.value = repository.pendingDatesForTask(leaf.taskKey, today.toString())
+            // Pending dates also exclude today — consistent with the backlog calculation.
+            val yesterday = today.minusDays(1)
+            _pendingDates.value = if (yesterday.isBefore(DateRules.START_DATE)) emptyList()
+            else repository.pendingDatesForTask(leaf.taskKey, yesterday.toString())
                 .map { LocalDate.parse(it) }
         }
     }

@@ -57,6 +57,7 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mystudytracker.app.ui.theme.AccentBlue
@@ -142,7 +143,7 @@ fun ReportScreen(viewModel: ReportViewModel, onBack: () -> Unit) {
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = today!!.format(DATE_LABEL_FORMAT),
+                            text = "Through ${today!!.minusDays(1).format(DATE_LABEL_FORMAT)}",
                             color = ZincTextSecondary,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Medium
@@ -181,17 +182,19 @@ fun ReportScreen(viewModel: ReportViewModel, onBack: () -> Unit) {
                         }
                         Spacer(Modifier.height(16.dp))
                         Text(
-                            text = "Sync date to show backlog report",
+                            text = "Sync Required",
                             color = ZincTextPrimary,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.SemiBold
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            textAlign = TextAlign.Center
                         )
-                        Spacer(Modifier.height(6.dp))
+                        Spacer(Modifier.height(8.dp))
                         Text(
-                            text = "Go back to the calendar and tap Sync to confirm today's date. The backlog report needs a confirmed date to count outstanding days accurately.",
+                            text = "Go back to the calendar and tap Sync to confirm today's date. A verified date is required to accurately calculate outstanding backlog.",
                             color = ZincTextMuted,
                             fontSize = 13.sp,
-                            lineHeight = 19.sp
+                            lineHeight = 20.sp,
+                            textAlign = TextAlign.Center
                         )
                     }
                 }
@@ -235,9 +238,10 @@ fun ReportScreen(viewModel: ReportViewModel, onBack: () -> Unit) {
                         )
                         Spacer(Modifier.height(6.dp))
                         Text(
-                            text = "No outstanding units through ${today!!.format(DATE_LABEL_FORMAT)}.",
+                            text = "No outstanding units through ${today!!.minusDays(1).format(DATE_LABEL_FORMAT)}.",
                             color = ZincTextMuted,
-                            fontSize = 13.sp
+                            fontSize = 13.sp,
+                            textAlign = TextAlign.Center
                         )
                     }
                 }
@@ -380,7 +384,7 @@ private fun SectionBacklogCard(section: BacklogNode, onSelectLeaf: (LeafBacklog)
             Column {
                 HorizontalDivider(color = ZincBorder.copy(alpha = 0.4f), thickness = 0.5.dp)
                 Column(
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
                     verticalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
                     section.children.filter { it.pendingUnits > 0 }.forEachIndexed { i, child ->
@@ -439,7 +443,7 @@ private fun BacklogNodeRow(
                 text = node.title,
                 color = ZincTextPrimary,
                 fontSize = 14.sp,
-                fontWeight = FontWeight.Medium,
+                fontWeight = FontWeight.Normal,
                 modifier = Modifier.weight(1f)
             )
             PendingBadge(pendingUnits = node.pendingUnits)
@@ -465,7 +469,7 @@ private fun BacklogNodeRow(
                     .background(
                         if (depth == 0) Color(0xFF27272A) else Color(0xFF1F1F22)
                     )
-                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                    .padding(vertical = 6.dp),
                 verticalArrangement = Arrangement.spacedBy(0.dp)
             ) {
                 val visibleChildren = node.children.filter { it.pendingUnits > 0 }
@@ -503,12 +507,12 @@ private fun LeafBacklogRow(
     ) {
         Text(
             text = title,
-            color = ZincTextSecondary,
+            color = ZincTextPrimary,
             fontSize = 14.sp,
             modifier = Modifier.weight(1f)
         )
         PendingBadge(pendingUnits = pendingUnits)
-        Spacer(Modifier.width(4.dp))
+        Spacer(Modifier.width(6.dp))
         Icon(
             Icons.Filled.ChevronRight,
             contentDescription = "View dates",
@@ -530,16 +534,16 @@ private fun PendingBadge(pendingUnits: Int) {
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(50))
-            .background(tint.copy(alpha = 0.15f))
-            .border(1.dp, tint.copy(alpha = 0.3f), RoundedCornerShape(50))
-            .padding(horizontal = 9.dp, vertical = 3.dp),
+            .background(tint.copy(alpha = 0.18f))
+            .border(1.dp, tint.copy(alpha = 0.40f), RoundedCornerShape(50))
+            .padding(horizontal = 10.dp, vertical = 4.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = "$pendingUnits",
             color = tint,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.SemiBold
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Bold
         )
     }
 }
