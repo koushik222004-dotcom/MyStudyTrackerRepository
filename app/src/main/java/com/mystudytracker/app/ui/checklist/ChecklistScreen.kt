@@ -29,6 +29,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -51,15 +52,19 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.outlined.Audiotrack
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.FileUpload
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.RadioButtonUnchecked
 import androidx.compose.material.icons.outlined.Videocam
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -84,6 +89,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
@@ -100,10 +106,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
 import com.mystudytracker.app.data.AttachmentType
+import com.mystudytracker.app.data.CatalogNode
 import com.mystudytracker.app.data.DailyAttachment
+import com.mystudytracker.app.data.DailyTaskState
 import com.mystudytracker.app.data.SectionDefinition
 import com.mystudytracker.app.data.TaskCatalog
-import com.mystudytracker.app.data.TaskItem
+import com.mystudytracker.app.data.TaskGroup
+import com.mystudytracker.app.data.TaskLeaf
+import com.mystudytracker.app.data.isDone
 import com.mystudytracker.app.ui.theme.AccentBlue
 import com.mystudytracker.app.ui.theme.AccentEmerald
 import com.mystudytracker.app.ui.theme.AccentRed
@@ -175,14 +185,14 @@ fun ChecklistScreen(
     viewModel: ChecklistViewModel,
     onBack: () -> Unit
 ) {
-    val checked by viewModel.checked.collectAsState()
+    val taskStates by viewModel.taskStates.collectAsState()
     val locked by viewModel.locked.collectAsState()
     val note by viewModel.note.collectAsState()
     val attachments by viewModel.attachments.collectAsState()
+    val completedCount by viewModel.completedUnits.collectAsState()
+    val totalCount by viewModel.totalUnits.collectAsState()
     var sheetOpen by rememberSaveable { mutableStateOf(false) }
-    val completedCount = checked.values.count { it }
-    val totalCount = TaskCatalog.totalTaskCount
-    val allComplete = totalCount > 0 && completedCount == totalCount
+    val allComplete = totalCount > 0 && completedCount >= totalCount
     val progressFraction = if (totalCount > 0) completedCount.toFloat() / totalCount else 0f
     val animatedProgressFraction by animateFloatAsState(
         targetValue = progressFraction.coerceIn(0f, 1f),
@@ -236,13 +246,22 @@ fun ChecklistScreen(
                     .alpha(if (locked) 0.6f else 1f),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
+                val actions = remember(viewModel) {
+                    ChecklistActions(
+                        toggleLeaf = viewModel::toggleLeaf,
+                        setQuantity = viewModel::setQuantity,
+                        setNotApplicable = viewModel::setNotApplicable,
+                        toggleGroup = viewModel::toggleGroup,
+                        toggleGroupNotApplicable = viewModel::toggleGroupNotApplicable
+                    )
+                }
                 TaskCatalog.sections.forEach { section ->
                     SectionCard(
                         section = section,
                         date = date,
-                        checked = checked,
+                        taskStates = taskStates,
                         locked = locked,
-                        onToggle = { taskId -> viewModel.toggle(taskId) }
+                        actions = actions
                     )
                 }
             }
@@ -1019,16 +1038,26 @@ private fun LockableBottomBar(
     }
 }
 
-// ── Section & task rows ───────────────────────────────────────────────────────────────────────
+// ── Section & task tree ───────────────────────────────────────────────────────────────────────
+
+/** Bundles every checklist mutation the tree UI can trigger, so composables below only need one parameter. */
+private data class ChecklistActions(
+    val toggleLeaf: (String) -> Unit,
+    val setQuantity: (String, Int) -> Unit,
+    val setNotApplicable: (String, Boolean) -> Unit,
+    val toggleGroup: (List<String>) -> Unit,
+    val toggleGroupNotApplicable: (List<String>) -> Unit
+)
 
 @Composable
 private fun SectionCard(
     section: SectionDefinition,
     date: LocalDate,
-    checked: Map<String, Boolean>,
+    taskStates: Map<String, DailyTaskState>,
     locked: Boolean,
-    onToggle: (String) -> Unit
+    actions: ChecklistActions
 ) {
+    val sectionLeafKeys = remember(section) { TaskCatalog.leafKeysUnder(section.children, section.key) }
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -1037,7 +1066,16 @@ private fun SectionCard(
             .background(ZincSurface)
             .padding(horizontal = 14.dp, vertical = 14.dp)
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .combinedClickable(
+                    enabled = !locked,
+                    onClick = { actions.toggleGroup(sectionLeafKeys) },
+                    onLongClick = { actions.toggleGroupNotApplicable(sectionLeafKeys) }
+                ),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Icon(
                 imageVector = section.icon,
                 contentDescription = null,
@@ -1049,8 +1087,10 @@ private fun SectionCard(
                 text = section.title,
                 color = ZincTextPrimary,
                 fontSize = 15.sp,
-                fontWeight = FontWeight.Medium
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.weight(1f)
             )
+            AggregateStateIcon(state = aggregateState(sectionLeafKeys, taskStates))
         }
 
         val ruleText = section.ruleProvider?.invoke(date)
@@ -1075,31 +1115,151 @@ private fun SectionCard(
             Spacer(Modifier.height(3.dp))
         }
 
-        Column(modifier = Modifier.padding(start = 26.dp)) {
-            section.tasks.forEach { task ->
-                TaskRow(
-                    task = task,
-                    checked = checked["${section.key}.${task.key}"] ?: false,
-                    locked = locked,
-                    onToggle = { onToggle("${section.key}.${task.key}") }
-                )
+        Column(modifier = Modifier.padding(start = 20.dp)) {
+            section.children.forEach { node ->
+                NodeRow(node = node, pathPrefix = section.key, depth = 0, taskStates = taskStates, locked = locked, actions = actions)
             }
         }
     }
 }
 
+/** Derived tri-state summary of a group of leaves - never stored, always computed from [taskStates]. */
+private enum class GroupState { EMPTY, PARTIAL, DONE, EXCLUDED }
+
+private fun aggregateState(leafKeys: List<String>, taskStates: Map<String, DailyTaskState>): GroupState {
+    if (leafKeys.isEmpty()) return GroupState.EMPTY
+    val states = leafKeys.map { taskStates[it] }
+    if (states.all { it?.notApplicable == true }) return GroupState.EXCLUDED
+    val applicable = states.filterNot { it?.notApplicable == true }
+    if (applicable.isEmpty()) return GroupState.EXCLUDED
+    val allDone = applicable.all { it.isDone() }
+    val noneStarted = applicable.all { (it?.completedCount ?: 0) == 0 }
+    return when {
+        allDone -> GroupState.DONE
+        noneStarted -> GroupState.EMPTY
+        else -> GroupState.PARTIAL
+    }
+}
+
 @Composable
-private fun TaskRow(task: TaskItem, checked: Boolean, locked: Boolean, onToggle: () -> Unit) {
+private fun NodeRow(
+    node: CatalogNode,
+    pathPrefix: String,
+    depth: Int,
+    taskStates: Map<String, DailyTaskState>,
+    locked: Boolean,
+    actions: ChecklistActions
+) {
+    val fullKey = "$pathPrefix.${node.key}"
+    when (node) {
+        is TaskLeaf -> LeafRow(fullKey = fullKey, title = node.title, depth = depth, state = taskStates[fullKey], locked = locked, actions = actions)
+        is TaskGroup -> GroupRow(node = node, parentPrefix = pathPrefix, fullKey = fullKey, depth = depth, taskStates = taskStates, locked = locked, actions = actions)
+    }
+}
+
+@Composable
+private fun GroupRow(
+    node: TaskGroup,
+    parentPrefix: String,
+    fullKey: String,
+    depth: Int,
+    taskStates: Map<String, DailyTaskState>,
+    locked: Boolean,
+    actions: ChecklistActions
+) {
+    // Collapsed by default - each group remembers its own expand state across recompositions but
+    // not across process death, matching how transient the rest of this screen's UI-only state is.
+    var expanded by remember(fullKey) { mutableStateOf(false) }
+    val leafKeys = remember(node, parentPrefix) { TaskCatalog.leafKeysUnder(node, parentPrefix) }
+    val chevronRotation by animateFloatAsState(if (expanded) 90f else 0f, tween(180), label = "chevronRotation")
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = (depth * 16).dp)
+                .clip(RoundedCornerShape(10.dp))
+                .combinedClickable(
+                    enabled = !locked,
+                    onClick = { actions.toggleGroup(leafKeys) },
+                    onLongClick = { actions.toggleGroupNotApplicable(leafKeys) }
+                )
+                .padding(vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(
+                onClick = { expanded = !expanded },
+                modifier = Modifier.size(24.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.ChevronRight,
+                    contentDescription = if (expanded) "Collapse" else "Expand",
+                    tint = ZincTextMuted,
+                    modifier = Modifier.size(18.dp).rotate(chevronRotation)
+                )
+            }
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = node.title,
+                color = ZincTextPrimary,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.weight(1f)
+            )
+            AggregateStateIcon(state = aggregateState(leafKeys, taskStates))
+        }
+
+        AnimatedVisibility(
+            visible = expanded,
+            enter = expandVertically(tween(200)) + fadeIn(tween(150)),
+            exit = shrinkVertically(tween(180)) + fadeOut(tween(120))
+        ) {
+            Column(modifier = Modifier.padding(start = 18.dp)) {
+                node.children.forEach { child ->
+                    NodeRow(node = child, pathPrefix = fullKey, depth = depth + 1, taskStates = taskStates, locked = locked, actions = actions)
+                }
+            }
+        }
+    }
+}
+
+/** Small trailing icon summarizing a section/group's derived state - never independently tappable. */
+@Composable
+private fun AggregateStateIcon(state: GroupState) {
+    val (icon, tint) = when (state) {
+        GroupState.DONE -> Icons.Filled.Check to AccentEmerald
+        GroupState.PARTIAL -> Icons.Filled.Remove to AccentBlue
+        GroupState.EXCLUDED -> Icons.Filled.Block to ZincTextMuted
+        GroupState.EMPTY -> Icons.Outlined.RadioButtonUnchecked to ZincTextMuted
+    }
+    Icon(imageVector = icon, contentDescription = null, tint = tint, modifier = Modifier.size(16.dp))
+}
+
+@Composable
+private fun LeafRow(
+    fullKey: String,
+    title: String,
+    depth: Int,
+    state: DailyTaskState?,
+    locked: Boolean,
+    actions: ChecklistActions
+) {
+    val notApplicable = state?.notApplicable == true
+    val target = state?.targetCount ?: 1
+    val completed = state?.completedCount ?: 0
+    val done = state.isDone()
+    var menuOpen by remember { mutableStateOf(false) }
+
     val checkboxScale = remember { Animatable(1f) }
-    LaunchedEffect(checked) {
-        if (checked) {
+    LaunchedEffect(done) {
+        if (done) {
             checkboxScale.animateTo(1.18f, tween(90))
             checkboxScale.animateTo(1f, tween(90))
         }
     }
 
     val labelColor by animateColorAsState(
-        targetValue = if (checked) ZincTextMuted else ZincTextPrimary,
+        targetValue = if (notApplicable) ZincTextMuted else if (done) ZincTextMuted else ZincTextPrimary,
         animationSpec = tween(200),
         label = "labelColor"
     )
@@ -1107,53 +1267,169 @@ private fun TaskRow(task: TaskItem, checked: Boolean, locked: Boolean, onToggle:
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .padding(start = (depth * 16).dp)
             .clip(RoundedCornerShape(10.dp))
-            .clickable(enabled = !locked) { onToggle() }
+            .combinedClickable(
+                enabled = !locked,
+                onClick = { actions.toggleLeaf(fullKey) },
+                onLongClick = { menuOpen = true }
+            )
             .padding(vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(
-            modifier = Modifier
-                .size(20.dp)
-                .scale(checkboxScale.value)
-                .clip(RoundedCornerShape(6.dp))
-                .background(if (checked) AccentEmerald else Color.Transparent)
-                .border(2.dp, if (checked) AccentEmerald else ZincBorder, RoundedCornerShape(6.dp)),
-            contentAlignment = Alignment.Center
-        ) {
-            // Fully-qualified deliberately: this Box is not a RowScope/ColumnScope receiver, and
-            // an unqualified call here resolves to the RowScope extension overload of
-            // AnimatedVisibility (same name, different package member) instead of the top-level
-            // one, which fails to compile with "cannot be called in this context with an implicit
-            // receiver". The qualified name pins it to the correct overload.
-            androidx.compose.animation.AnimatedVisibility(
-                visible = checked,
-                enter = fadeIn(tween(120)) + scaleIn(tween(120), initialScale = 0.6f),
-                exit = fadeOut(tween(80)) + scaleOut(tween(80), targetScale = 0.6f)
+        when {
+            notApplicable -> Box(
+                modifier = Modifier
+                    .height(20.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .border(2.dp, ZincBorder, RoundedCornerShape(6.dp))
+                    .padding(horizontal = 6.dp),
+                contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = Icons.Filled.Check,
-                    contentDescription = null,
-                    tint = ZincBackground,
-                    modifier = Modifier.size(14.dp)
+                Text(text = "N/A", color = ZincTextMuted, fontSize = 10.sp, fontWeight = FontWeight.Medium)
+            }
+            target > 1 -> Box(
+                modifier = Modifier
+                    .height(20.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(if (done) AccentEmerald else ZincSurfaceVariant)
+                    .border(2.dp, if (done) AccentEmerald else ZincBorder, RoundedCornerShape(6.dp))
+                    .padding(horizontal = 6.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "$completed/$target",
+                    color = if (done) ZincBackground else ZincTextPrimary,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.SemiBold
                 )
+            }
+            else -> Box(
+                modifier = Modifier
+                    .size(20.dp)
+                    .scale(checkboxScale.value)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(if (done) AccentEmerald else Color.Transparent)
+                    .border(2.dp, if (done) AccentEmerald else ZincBorder, RoundedCornerShape(6.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = done,
+                    enter = fadeIn(tween(120)) + scaleIn(tween(120), initialScale = 0.6f),
+                    exit = fadeOut(tween(80)) + scaleOut(tween(80), targetScale = 0.6f)
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Check,
+                        contentDescription = null,
+                        tint = ZincBackground,
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
             }
         }
         Spacer(Modifier.width(12.dp))
-        // Crossfade between plain and struck-through text: at rest only one Text node exists,
-        // vs the previous Box approach which always kept both in the tree (50 extra nodes for
-        // 25 tasks). Smooth fade still provided by Crossfade's animated alpha transition.
+        // Crossfade between plain and struck-through text: at rest only one Text node exists.
         Crossfade(
-            targetState = checked,
+            targetState = done,
             animationSpec = tween(200),
             label = "taskStrike"
-        ) { isChecked ->
+        ) { isDone ->
             Text(
-                text = task.label,
+                text = title,
                 color = labelColor,
                 fontSize = 15.sp,
-                textDecoration = if (isChecked) TextDecoration.LineThrough else TextDecoration.None
+                textDecoration = if (isDone) TextDecoration.LineThrough else TextDecoration.None
             )
         }
     }
+
+    if (menuOpen) {
+        LeafActionMenu(
+            title = title,
+            notApplicable = notApplicable,
+            targetCount = target,
+            onDismiss = { menuOpen = false },
+            onToggleNotApplicable = { actions.setNotApplicable(fullKey, !notApplicable) },
+            onSetQuantity = { qty -> actions.setQuantity(fullKey, qty) }
+        )
+    }
+}
+
+/**
+ * Long-press menu for a single leaf task: toggle "doesn't apply" and set a quantity greater than
+ * one (e.g. "2 lectures today"). A plain Material3 dialog is enough here - this is an infrequent,
+ * deliberate action, not part of the screen's everyday tap-to-check flow that warrants bespoke
+ * animation the way the bottom bar and checkbox do.
+ */
+@Composable
+private fun LeafActionMenu(
+    title: String,
+    notApplicable: Boolean,
+    targetCount: Int,
+    onDismiss: () -> Unit,
+    onToggleNotApplicable: () -> Unit,
+    onSetQuantity: (Int) -> Unit
+) {
+    var quantity by remember(targetCount) { mutableStateOf(targetCount) }
+
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = ZincSurface,
+        title = { Text(text = title, color = ZincTextPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold) },
+        text = {
+            Column {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .clickable { onToggleNotApplicable(); onDismiss() }
+                        .padding(vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = if (notApplicable) "Remove \"Doesn't Apply\"" else "Mark as \"Doesn't Apply\"",
+                        color = ZincTextPrimary,
+                        fontSize = 14.sp
+                    )
+                }
+                Spacer(Modifier.height(4.dp))
+                HorizontalDivider(color = ZincBorder, thickness = 1.dp)
+                Spacer(Modifier.height(12.dp))
+                Text(text = "QUANTITY", color = ZincTextMuted, fontSize = 10.sp, letterSpacing = 1.sp, fontWeight = FontWeight.Medium)
+                Spacer(Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    IconButton(
+                        onClick = { if (quantity > 1) quantity -= 1 },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier.size(28.dp).clip(RoundedCornerShape(8.dp)).background(ZincSurfaceVariant),
+                            contentAlignment = Alignment.Center
+                        ) { Text(text = "-", color = ZincTextPrimary, fontSize = 16.sp) }
+                    }
+                    Text(text = "$quantity", color = ZincTextPrimary, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                    IconButton(
+                        onClick = { quantity += 1 },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier.size(28.dp).clip(RoundedCornerShape(8.dp)).background(ZincSurfaceVariant),
+                            contentAlignment = Alignment.Center
+                        ) { Text(text = "+", color = ZincTextPrimary, fontSize = 16.sp) }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            androidx.compose.material3.TextButton(onClick = { onSetQuantity(quantity); onDismiss() }) {
+                Text(text = "Save Quantity", color = AccentBlue)
+            }
+        },
+        dismissButton = {
+            androidx.compose.material3.TextButton(onClick = onDismiss) {
+                Text(text = "Cancel", color = ZincTextMuted)
+            }
+        }
+    )
 }

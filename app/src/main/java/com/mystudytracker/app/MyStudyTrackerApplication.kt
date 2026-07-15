@@ -8,6 +8,6 @@ import com.mystudytracker.app.data.ProgressRepository
 class MyStudyTrackerApplication : Application() {
     val repository: ProgressRepository by lazy {
         val db = AppDatabase.getInstance(this)
-        ProgressRepository(db.dailyProgressDao(), db.dailyAttachmentDao())
+        ProgressRepository(db, db.dailyProgressDao(), db.dailyTaskStateDao(), db.dailyAttachmentDao())
     }
 }

@@ -5,6 +5,7 @@ import android.os.SystemClock
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.mystudytracker.app.data.DailyProgress
 import com.mystudytracker.app.data.ProgressRepository
 import com.mystudytracker.app.util.DateIntegrityManager
 import java.time.LocalDate
@@ -22,9 +23,9 @@ class CalendarViewModel(
     private val dateIntegrityManager: DateIntegrityManager
 ) : ViewModel() {
 
-    /** ISO date string -> completed task count (0..TaskCatalog.totalTaskCount), for every day with any saved progress. */
-    val completedCountByDate: StateFlow<Map<String, Int>> = repository.observeAll()
-        .map { rows -> rows.associate { it.date to it.completedCount } }
+    /** ISO date string -> that day's completed/total unit row, for every day with any saved progress. */
+    val progressByDate: StateFlow<Map<String, DailyProgress>> = repository.observeAll()
+        .map { rows -> rows.associateBy { it.date } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
     // "Today" as computed by the uptime-anchored date-integrity system - null only before the very

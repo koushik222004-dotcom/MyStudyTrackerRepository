@@ -10,22 +10,30 @@ enum class DayStatus {
     FUTURE, // after today - locked, cannot be opened
     TODAY_INCOMPLETE,
     TODAY_COMPLETE,
-    GREEN, // past day, fully completed (all tasks checked)
+    GREEN, // past day, fully completed (all applicable tasks checked)
     YELLOW, // past day, partially completed
     RED // past day, nothing completed
 }
 
-fun computeDayStatus(date: LocalDate, today: LocalDate, completedCount: Int?): DayStatus {
+/**
+ * [totalUnits] is the day's own denominator, not a fixed catalog constant - "doesn't apply" and
+ * quantities both shrink/grow it per day, so a day with every applicable task done can turn green
+ * even if some tasks were excluded. A day with no saved row yet has never been opened, so it
+ * defaults to the full catalog size with nothing completed (same "everything outstanding" reading
+ * the app has always used for untouched days).
+ */
+fun computeDayStatus(date: LocalDate, today: LocalDate, completedUnits: Int?, totalUnits: Int?): DayStatus {
     if (!DateRules.isWithinTrackedRange(date)) return DayStatus.OUTSIDE
     if (date.isAfter(today)) return DayStatus.FUTURE
 
-    val count = completedCount ?: 0
+    val completed = completedUnits ?: 0
+    val total = totalUnits ?: TaskCatalog.totalLeafCount
     if (date.isEqual(today)) {
-        return if (count >= TaskCatalog.totalTaskCount) DayStatus.TODAY_COMPLETE else DayStatus.TODAY_INCOMPLETE
+        return if (total > 0 && completed >= total) DayStatus.TODAY_COMPLETE else DayStatus.TODAY_INCOMPLETE
     }
     return when {
-        count >= TaskCatalog.totalTaskCount -> DayStatus.GREEN
-        count <= 0 -> DayStatus.RED
+        total > 0 && completed >= total -> DayStatus.GREEN
+        completed <= 0 -> DayStatus.RED
         else -> DayStatus.YELLOW
     }
 }

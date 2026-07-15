@@ -1,6 +1,6 @@
 package com.mystudytracker.app.ui.splash
 
-import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -28,35 +28,31 @@ import com.mystudytracker.app.util.AppText
 import kotlinx.coroutines.delay
 
 private const val TOTAL_DURATION_MS = 1000L
-private const val FADE_IN_MS = 220
-private const val FADE_OUT_MS = 200
+private const val FADE_MS = 220
 
 /**
  * Fixed ~1 second blue splash shown on app launch and every time a date is opened, matching the
- * calendar masthead's title so the two never look out of sync. Text fades in, holds, then the
- * whole screen fades out into whatever comes next - [onFinished] is called once that's done.
+ * calendar masthead's title so the two never look out of sync. The background and text used to
+ * fade on two independent alphas with different durations/easings - the background had no fade-in
+ * at all and only ever appeared to fade out in sync with the text by coincidence. A single shared
+ * alpha now drives the whole screen (background + text together) with one consistent easing and
+ * duration for both the entrance and the exit, so the two can never visually drift apart again.
  */
 @Composable
 fun SplashScreen(onFinished: () -> Unit) {
-    var textAlpha by remember { mutableFloatStateOf(0f) }
-    var screenAlpha by remember { mutableFloatStateOf(1f) }
+    var screenAlpha by remember { mutableFloatStateOf(0f) }
 
-    val animatedTextAlpha by animateFloatAsState(
-        targetValue = textAlpha,
-        animationSpec = tween(FADE_IN_MS, easing = LinearOutSlowInEasing),
-        label = "splashTextAlpha"
-    )
     val animatedScreenAlpha by animateFloatAsState(
         targetValue = screenAlpha,
-        animationSpec = tween(FADE_OUT_MS),
+        animationSpec = tween(FADE_MS, easing = FastOutSlowInEasing),
         label = "splashScreenAlpha"
     )
 
     LaunchedEffect(Unit) {
-        textAlpha = 1f
-        delay(TOTAL_DURATION_MS - FADE_OUT_MS)
+        screenAlpha = 1f
+        delay(TOTAL_DURATION_MS - FADE_MS)
         screenAlpha = 0f
-        delay(FADE_OUT_MS.toLong())
+        delay(FADE_MS.toLong())
         onFinished()
     }
 
@@ -73,8 +69,7 @@ fun SplashScreen(onFinished: () -> Unit) {
             color = Color.White,
             fontSize = 13.sp,
             letterSpacing = 1.5.sp,
-            fontWeight = FontWeight.Medium,
-            modifier = Modifier.alpha(animatedTextAlpha)
+            fontWeight = FontWeight.Medium
         )
         Spacer(Modifier.height(4.dp))
         Text(
@@ -82,8 +77,7 @@ fun SplashScreen(onFinished: () -> Unit) {
             color = Color.White,
             fontSize = 20.sp,
             letterSpacing = 0.4.sp,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.alpha(animatedTextAlpha)
+            fontWeight = FontWeight.Bold
         )
         Spacer(Modifier.height(4.dp))
         Text(
@@ -91,8 +85,7 @@ fun SplashScreen(onFinished: () -> Unit) {
             color = Color.White,
             fontSize = 13.sp,
             letterSpacing = 1.5.sp,
-            fontWeight = FontWeight.Medium,
-            modifier = Modifier.alpha(animatedTextAlpha)
+            fontWeight = FontWeight.Medium
         )
     }
 }

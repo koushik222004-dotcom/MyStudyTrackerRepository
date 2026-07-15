@@ -30,8 +30,11 @@ import com.mystudytracker.app.ui.calendar.CalendarScreen
 import com.mystudytracker.app.ui.calendar.CalendarViewModel
 import com.mystudytracker.app.ui.checklist.ChecklistScreen
 import com.mystudytracker.app.ui.checklist.ChecklistViewModel
+import com.mystudytracker.app.ui.report.ReportScreen
+import com.mystudytracker.app.ui.report.ReportViewModel
 import com.mystudytracker.app.ui.splash.SplashScreen
 import com.mystudytracker.app.ui.theme.MyStudyTrackerTheme
+import com.mystudytracker.app.util.DateIntegrityManager
 import java.time.LocalDate
 
 class MainActivity : ComponentActivity() {
@@ -104,7 +107,18 @@ private fun MyStudyTrackerNavHost(repository: ProgressRepository) {
             val viewModel: CalendarViewModel = viewModel(factory = CalendarViewModel.factory(repository, context.applicationContext))
             CalendarScreen(
                 viewModel = viewModel,
-                onDateSelected = { date -> navController.navigate("dateSplash/$date") }
+                onDateSelected = { date -> navController.navigate("dateSplash/$date") },
+                onOpenReport = { navController.navigate("report") }
+            )
+        }
+        composable("report") {
+            val context = LocalContext.current
+            val viewModel: ReportViewModel = viewModel(
+                factory = ReportViewModel.factory(repository, DateIntegrityManager(context.applicationContext))
+            )
+            ReportScreen(
+                viewModel = viewModel,
+                onBack = { navController.popBackStack() }
             )
         }
         // Shown every time a date is opened - covers the brief window while that day's checklist

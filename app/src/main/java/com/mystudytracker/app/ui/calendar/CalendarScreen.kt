@@ -34,6 +34,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Assignment
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
@@ -61,6 +62,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.mystudytracker.app.data.DailyProgress
 import com.mystudytracker.app.ui.theme.AccentAmber
 import com.mystudytracker.app.ui.theme.AccentBlue
 import com.mystudytracker.app.ui.theme.AccentEmerald
@@ -84,9 +86,10 @@ private val WEEKDAY_LABELS = listOf("S", "M", "T", "W", "T", "F", "S")
 @Composable
 fun CalendarScreen(
     viewModel: CalendarViewModel,
-    onDateSelected: (LocalDate) -> Unit
+    onDateSelected: (LocalDate) -> Unit,
+    onOpenReport: () -> Unit
 ) {
-    val completedCounts by viewModel.completedCountByDate.collectAsState()
+    val progressByDate by viewModel.progressByDate.collectAsState()
     val trackedToday by viewModel.today.collectAsState()
     val lastSyncedLabel by viewModel.lastSyncedLabel.collectAsState()
     val rebootDetected by viewModel.rebootDetected.collectAsState()
@@ -272,14 +275,37 @@ fun CalendarScreen(
                 CalendarGrid(
                     month = targetMonth,
                     today = today,
-                    completedCounts = completedCounts,
+                    progressByDate = progressByDate,
                     onDateSelected = onDateSelected
                 )
             }
         }
 
+        ReportButton(onClick = onOpenReport)
+        Spacer(Modifier.height(12.dp))
         KeyCard()
         Spacer(Modifier.height(20.dp))
+    }
+}
+
+@Composable
+private fun ReportButton(onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(elevation = 6.dp, shape = RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(16.dp))
+            .background(ZincSurface)
+            .clickable { onClick() }
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Icon(Icons.AutoMirrored.Filled.Assignment, contentDescription = null, tint = AccentBlue, modifier = Modifier.size(18.dp))
+            Text(text = "Backlog Report", color = ZincTextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+        }
+        Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = ZincTextMuted, modifier = Modifier.size(18.dp))
     }
 }
 
@@ -292,7 +318,7 @@ fun CalendarScreen(
 private fun CalendarGrid(
     month: YearMonth,
     today: LocalDate,
-    completedCounts: Map<String, Int>,
+    progressByDate: Map<String, DailyProgress>,
     onDateSelected: (LocalDate) -> Unit
 ) {
     val weeks = remember(month) { buildWeeks(month) }
@@ -302,10 +328,12 @@ private fun CalendarGrid(
                 week.forEach { date ->
                     Box(modifier = Modifier.weight(1f).aspectRatio(1f)) {
                         if (date != null) {
+                            val progress = progressByDate[date.toString()]
                             DayCell(
                                 date = date,
                                 today = today,
-                                completedCount = completedCounts[date.toString()],
+                                completedUnits = progress?.completedUnits,
+                                totalUnits = progress?.totalUnits,
                                 onClick = { onDateSelected(date) }
                             )
                         }
@@ -422,10 +450,11 @@ private data class SyncVisualState(
 private fun DayCell(
     date: LocalDate,
     today: LocalDate,
-    completedCount: Int?,
+    completedUnits: Int?,
+    totalUnits: Int?,
     onClick: () -> Unit
 ) {
-    val status = computeDayStatus(date, today, completedCount)
+    val status = computeDayStatus(date, today, completedUnits, totalUnits)
     val clickable = isDayClickable(status)
 
     if (status == DayStatus.OUTSIDE) return
