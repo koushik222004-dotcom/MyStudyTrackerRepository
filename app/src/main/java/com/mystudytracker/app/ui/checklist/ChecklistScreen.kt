@@ -248,6 +248,8 @@ fun ChecklistScreen(
                 RemarkAttachmentBadge(active = hasContent, onClick = { sheetOpen = true })
             }
 
+            HorizontalDivider(color = ZincBorder.copy(alpha = 0.4f), thickness = 0.5.dp)
+
             // ── Scrollable body ─────────────────────────────────────────────
             Column(
                 modifier = Modifier

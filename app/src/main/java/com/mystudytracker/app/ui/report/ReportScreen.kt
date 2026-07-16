@@ -152,7 +152,6 @@ fun ReportScreen(viewModel: ReportViewModel, onBack: () -> Unit) {
             }
 
             HorizontalDivider(color = ZincBorder.copy(alpha = 0.4f), thickness = 0.5.dp)
-            Spacer(Modifier.height(4.dp))
 
             // ── Body ──────────────────────────────────────────────────────
             when {
@@ -251,7 +250,7 @@ fun ReportScreen(viewModel: ReportViewModel, onBack: () -> Unit) {
                         modifier = Modifier
                             .verticalScroll(rememberScrollState())
                             .padding(horizontal = 16.dp)
-                            .padding(top = 8.dp, bottom = 28.dp),
+                            .padding(top = 12.dp, bottom = 28.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         tree.filter { it.pendingUnits > 0 }.forEach { section ->
