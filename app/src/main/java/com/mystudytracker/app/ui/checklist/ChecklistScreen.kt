@@ -27,7 +27,6 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
@@ -376,9 +375,8 @@ fun ChecklistScreen(
                         viewModel.setNotApplicable(state.fullKey, !state.notApplicable)
                         leafMenuState = null
                     },
-                    onSetQuantity = { qty ->
+                    onQuantityChange = { qty ->
                         viewModel.setQuantity(state.fullKey, qty)
-                        leafMenuState = null
                     }
                 )
             }
@@ -399,9 +397,7 @@ private fun RemarkAttachmentBadge(active: Boolean, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(8.dp))
-            .background(if (active) AccentBlue.copy(alpha = 0.14f) else ZincSurfaceVariant)
-            // Border only when active — accent signal that content already exists.
-            .let { if (active) it.border(1.dp, AccentBlue, RoundedCornerShape(8.dp)) else it }
+            .background(if (active) AccentBlue.copy(alpha = 0.22f) else ZincSurfaceVariant)
             .clickable(
                 onClickLabel = if (active) "Edit remark & attachments" else "Add remark or attachments",
                 role = Role.Button,
@@ -502,6 +498,8 @@ private fun RemarkAttachmentsPanel(
     val remarkFieldMaxHeight = (LocalConfiguration.current.screenHeightDp * 0.20f).dp
         .coerceIn(80.dp, 180.dp)
 
+    // Outer Column carries no horizontal padding so HorizontalDivider spans edge to edge.
+    // Each content section manages its own horizontal padding internally.
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -516,12 +514,13 @@ private fun RemarkAttachmentsPanel(
             ) {}
             .verticalScroll(rememberScrollState())
             .navigationBarsPadding()
-            .padding(horizontal = 20.dp)
-            .padding(top = 20.dp, bottom = 20.dp)
     ) {
         // ── Header ──────────────────────────────────────────────────────────
+        // Carries its own horizontal padding.
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 20.dp, end = 8.dp, top = 20.dp, bottom = 18.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
@@ -550,161 +549,160 @@ private fun RemarkAttachmentsPanel(
             }
         }
 
-        Spacer(Modifier.height(18.dp))
-
-        // ── REMARK ──────────────────────────────────────────────────────────
-        Text(
-            text = "REMARK",
-            color = ZincTextMuted,
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Medium,
-            letterSpacing = 1.sp
-        )
-        Spacer(Modifier.height(8.dp))
-        var remarkFocused by remember { mutableStateOf(false) }
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = 80.dp, max = remarkFieldMaxHeight)
-                .clip(RoundedCornerShape(12.dp))
-                .background(ZincSurfaceVariant)
-                .border(
-                    width = 1.dp,
-                    color = if (remarkFocused) AccentBlue else ZincBorder,
-                    shape = RoundedCornerShape(12.dp)
-                )
-                .padding(12.dp)
-        ) {
-            BasicTextField(
-                value = text,
-                onValueChange = { text = it },
-                textStyle = TextStyle(fontSize = 14.sp, color = ZincTextPrimary),
-                cursorBrush = SolidColor(AccentBlue),
+        // ── REMARK section ───────────────────────────────────────────────────
+        Column(modifier = Modifier.padding(horizontal = 20.dp)) {
+            Text(
+                text = "REMARK",
+                color = ZincTextMuted,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Medium,
+                letterSpacing = 1.sp
+            )
+            Spacer(Modifier.height(8.dp))
+            var remarkFocused by remember { mutableStateOf(false) }
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .onFocusChanged { remarkFocused = it.isFocused },
-                decorationBox = { innerTextField ->
-                    Box {
-                        if (text.isEmpty()) {
-                            Text(
-                                text = "Add a remark for today...",
-                                color = ZincTextMuted,
-                                fontSize = 14.sp
-                            )
-                        }
-                        innerTextField()
-                    }
-                }
-            )
-        }
-
-        Spacer(Modifier.height(20.dp))
-        HorizontalDivider(color = ZincBorder, thickness = 1.dp)
-        Spacer(Modifier.height(16.dp))
-
-        // ── ATTACHMENTS ─────────────────────────────────────────────────────
-        Text(
-            text = "ATTACHMENTS",
-            color = ZincTextMuted,
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Medium,
-            letterSpacing = 1.sp
-        )
-        Spacer(Modifier.height(10.dp))
-
-        // Single upload button - cleaner than 4 separate type buttons
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
-                .background(ZincSurfaceVariant)
-                .clickable {
-                    // Drop focus (and the keyboard) before handing off to the system picker.
-                    // Without this, focus silently returns to the remark field the moment the
-                    // picker closes, which reopens the keyboard and makes its cursor handle
-                    // jump for a frame while everything resyncs. Clearing focus up front means
-                    // that automatic refocus-and-reopen never happens - the field stays put,
-                    // unfocused, until the user deliberately taps back into it - so there's no
-                    // resize/refocus sequence left for the handle to glitch during. The panel's
-                    // own position and size are completely untouched by this.
-                    focusManager.clearFocus()
-                    fileLauncher.launch("*/*")
-                }
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center
-        ) {
-            Icon(
-                imageVector = Icons.Outlined.FileUpload,
-                contentDescription = null,
-                tint = AccentBlue,
-                modifier = Modifier.size(20.dp)
-            )
-            Spacer(Modifier.width(10.dp))
-            Text(
-                text = "Upload File",
-                color = ZincTextPrimary,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Medium
-            )
-        }
-
-        // Unsupported format error - slides in below the button, auto-dismisses after 3s
-        AnimatedVisibility(
-            visible = fileError != null,
-            enter = expandVertically(tween(200)) + fadeIn(tween(200)),
-            exit = shrinkVertically(tween(200)) + fadeOut(tween(200))
-        ) {
-            Column {
-                Spacer(Modifier.height(8.dp))
-                Row(
+                    .heightIn(min = 80.dp, max = remarkFieldMaxHeight)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(if (remarkFocused) ZincBorder else ZincSurfaceVariant)
+                    .padding(12.dp)
+            ) {
+                BasicTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    textStyle = TextStyle(fontSize = 14.sp, color = ZincTextPrimary),
+                    cursorBrush = SolidColor(AccentBlue),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Color(0x1FE05252))
-                        .padding(horizontal = 12.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.ErrorOutline,
-                        contentDescription = null,
-                        tint = Color(0xFFE05252),
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        text = fileError ?: "",
-                        color = Color(0xFFE05252),
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
+                        .onFocusChanged { remarkFocused = it.isFocused },
+                    decorationBox = { innerTextField ->
+                        Box {
+                            if (text.isEmpty()) {
+                                Text(
+                                    text = "Add a remark for today...",
+                                    color = ZincTextMuted,
+                                    fontSize = 14.sp
+                                )
+                            }
+                            innerTextField()
+                        }
+                    }
+                )
             }
+            Spacer(Modifier.height(20.dp))
         }
 
-        // Horizontally scrollable row of chips for each attached file
-        if (attachments.isNotEmpty()) {
-            Spacer(Modifier.height(12.dp))
+        // Edge-to-edge divider — no horizontal padding on this element
+        HorizontalDivider(color = ZincSurfaceVariant, thickness = 1.dp)
+
+        // ── ATTACHMENTS section ──────────────────────────────────────────────
+        Column(modifier = Modifier.padding(horizontal = 20.dp)) {
+            Spacer(Modifier.height(16.dp))
+            Text(
+                text = "ATTACHMENTS",
+                color = ZincTextMuted,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Medium,
+                letterSpacing = 1.sp
+            )
+            Spacer(Modifier.height(10.dp))
+
+            // Single upload button - cleaner than 4 separate type buttons
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(ZincSurfaceVariant)
+                    .clickable {
+                        // Drop focus (and the keyboard) before handing off to the system picker.
+                        // Without this, focus silently returns to the remark field the moment the
+                        // picker closes, which reopens the keyboard and makes its cursor handle
+                        // jump for a frame while everything resyncs. Clearing focus up front means
+                        // that automatic refocus-and-reopen never happens - the field stays put,
+                        // unfocused, until the user deliberately taps back into it - so there's no
+                        // resize/refocus sequence left for the handle to glitch during. The panel's
+                        // own position and size are completely untouched by this.
+                        focusManager.clearFocus()
+                        fileLauncher.launch("*/*")
+                    }
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
             ) {
-                attachments.forEach { attachment ->
-                    // Keyed on the stable attachment id so each chip's remembered
-                    // confirmingDelete state stays bound to that attachment - without this,
-                    // removing an item mid-confirmation would leak "Delete?" onto whichever
-                    // attachment slides into the same list position afterward.
-                    key(attachment.id) {
-                        AttachmentChip(
-                            attachment = attachment,
-                            onRemove = { onRemoveAttachment(attachment.id) },
-                            onOpen = { openAttachment(context, attachment) }
+                Icon(
+                    imageVector = Icons.Outlined.FileUpload,
+                    contentDescription = null,
+                    tint = AccentBlue,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    text = "Upload File",
+                    color = ZincTextPrimary,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+
+            // Unsupported format error - slides in below the button, auto-dismisses after 3s
+            AnimatedVisibility(
+                visible = fileError != null,
+                enter = expandVertically(tween(200)) + fadeIn(tween(200)),
+                exit = shrinkVertically(tween(200)) + fadeOut(tween(200))
+            ) {
+                Column {
+                    Spacer(Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color(0x1FE05252))
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.ErrorOutline,
+                            contentDescription = null,
+                            tint = Color(0xFFE05252),
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = fileError ?: "",
+                            color = Color(0xFFE05252),
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium
                         )
                     }
                 }
             }
+
+            // Horizontally scrollable row of chips for each attached file
+            if (attachments.isNotEmpty()) {
+                Spacer(Modifier.height(12.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    attachments.forEach { attachment ->
+                        // Keyed on the stable attachment id so each chip's remembered
+                        // confirmingDelete state stays bound to that attachment - without this,
+                        // removing an item mid-confirmation would leak "Delete?" onto whichever
+                        // attachment slides into the same list position afterward.
+                        key(attachment.id) {
+                            AttachmentChip(
+                                attachment = attachment,
+                                onRemove = { onRemoveAttachment(attachment.id) },
+                                onOpen = { openAttachment(context, attachment) }
+                            )
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(20.dp))
         }
     }
 }
@@ -736,8 +734,7 @@ private fun AttachmentChip(
             Row(
                 modifier = Modifier
                     .clip(RoundedCornerShape(8.dp))
-                    .background(ZincSurfaceVariant)
-                    .border(1.dp, AccentRed.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                    .background(AccentRed.copy(alpha = 0.10f))
                     .padding(start = 10.dp, top = 6.dp, bottom = 6.dp, end = 2.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -1381,15 +1378,14 @@ private fun GroupRow(
  */
 @Composable
 private fun UnifiedCheckbox(state: GroupState, modifier: Modifier = Modifier) {
-    // EXCLUDED uses a variable-width pill — handle it first so the fixed-square path below
-    // is not reached for this state and the size contract stays clean.
+    // EXCLUDED uses a variable-width pill — solid ZincBorder background creates
+    // clear depth against the ZincSurface card without needing an explicit border stroke.
     if (state == GroupState.EXCLUDED) {
         Box(
             modifier = modifier
                 .height(22.dp)
                 .clip(RoundedCornerShape(6.dp))
-                .background(ZincSurfaceVariant)
-                .border(2.dp, ZincBorder.copy(alpha = 0.5f), RoundedCornerShape(6.dp))
+                .background(ZincBorder)
                 .padding(horizontal = 6.dp),
             contentAlignment = Alignment.Center
         ) {
@@ -1406,20 +1402,14 @@ private fun UnifiedCheckbox(state: GroupState, modifier: Modifier = Modifier) {
 
     val bgColor = when (state) {
         GroupState.DONE    -> AccentEmerald
-        GroupState.PARTIAL -> AccentBlue.copy(alpha = 0.13f)
-        else               -> Color.Transparent // EMPTY
-    }
-    val borderColor = when (state) {
-        GroupState.DONE    -> AccentEmerald
-        GroupState.PARTIAL -> AccentBlue
-        else               -> ZincBorder // EMPTY
+        GroupState.PARTIAL -> AccentBlue.copy(alpha = 0.22f)
+        else               -> ZincSurfaceVariant // EMPTY — solid subtle bg, no border
     }
     Box(
         modifier = modifier
             .size(22.dp)
             .clip(RoundedCornerShape(6.dp))
-            .background(bgColor)
-            .border(2.dp, borderColor, RoundedCornerShape(6.dp)),
+            .background(bgColor),
         contentAlignment = Alignment.Center
     ) {
         when (state) {
@@ -1435,7 +1425,7 @@ private fun UnifiedCheckbox(state: GroupState, modifier: Modifier = Modifier) {
                 tint = AccentBlue,
                 modifier = Modifier.size(13.dp)
             )
-            else -> { /* EMPTY — nothing inside */ }
+            else -> { /* EMPTY — solid bg, no icon */ }
         }
     }
 }
@@ -1525,8 +1515,7 @@ private fun LeafRow(
                         modifier = Modifier
                             .height(22.dp)
                             .clip(RoundedCornerShape(6.dp))
-                            .background(ZincSurfaceVariant)
-                            .border(2.dp, ZincBorder.copy(alpha = 0.6f), RoundedCornerShape(6.dp))
+                            .background(ZincBorder)
                             .padding(horizontal = 7.dp),
                         contentAlignment = Alignment.Center
                     ) {
@@ -1541,8 +1530,7 @@ private fun LeafRow(
                         modifier = Modifier
                             .height(22.dp)
                             .clip(RoundedCornerShape(6.dp))
-                            .background(if (done) AccentEmerald else ZincSurfaceVariant)
-                            .border(2.dp, if (done) AccentEmerald else ZincBorder, RoundedCornerShape(6.dp))
+                            .background(if (done) AccentEmerald else ZincBorder)
                             .padding(horizontal = 7.dp),
                         contentAlignment = Alignment.Center
                     ) {
@@ -1558,8 +1546,7 @@ private fun LeafRow(
                             .size(22.dp)
                             .scale(checkboxScale.value)
                             .clip(RoundedCornerShape(6.dp))
-                            .background(if (done) AccentEmerald else Color.Transparent)
-                            .border(2.dp, if (done) AccentEmerald else ZincBorder, RoundedCornerShape(6.dp)),
+                            .background(if (done) AccentEmerald else ZincSurfaceVariant),
                         contentAlignment = Alignment.Center
                     ) {
                         androidx.compose.animation.AnimatedVisibility(
@@ -1601,14 +1588,15 @@ private fun LeafActionMenu(
     targetCount: Int,
     onDismiss: () -> Unit,
     onToggleNotApplicable: () -> Unit,
-    onSetQuantity: (Int) -> Unit
+    onQuantityChange: (Int) -> Unit
 ) {
     var quantity by remember(targetCount) { mutableStateOf(targetCount) }
 
+    // Outer Column has no horizontal padding so dividers span edge to edge.
+    // Content sections carry their own horizontal padding individually.
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(max = 560.dp)
             .shadow(elevation = 32.dp, shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
             .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
             .background(ZincSurface)
@@ -1616,31 +1604,24 @@ private fun LeafActionMenu(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null
             ) {}
-            .verticalScroll(rememberScrollState())
             .navigationBarsPadding()
-            .padding(horizontal = 20.dp)
-            .padding(top = 20.dp, bottom = 20.dp)
     ) {
         // ── Header ──────────────────────────────────────────────────────────
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 20.dp, end = 8.dp, top = 20.dp, bottom = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Task Options",
-                    color = ZincTextPrimary,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    text = title,
-                    color = ZincTextMuted,
-                    fontSize = 11.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
+            Text(
+                text = title,
+                color = ZincTextPrimary,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
             IconButton(
                 onClick = onDismiss,
                 modifier = Modifier.size(36.dp)
@@ -1654,113 +1635,136 @@ private fun LeafActionMenu(
             }
         }
 
-        Spacer(Modifier.height(20.dp))
+        // Edge-to-edge divider
+        HorizontalDivider(color = ZincSurfaceVariant, thickness = 1.dp)
 
-        // ── NOT APPLICABLE ──────────────────────────────────────────────────
-        Text(
-            text = "NOT APPLICABLE",
-            color = ZincTextMuted,
-            fontSize = 10.sp,
-            letterSpacing = 1.sp,
-            fontWeight = FontWeight.Medium
-        )
-        Spacer(Modifier.height(8.dp))
-        Box(
+        // ── Not Applicable toggle ────────────────────────────────────────────
+        // Tapping immediately applies and dismisses — same as N/A on any group row.
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
-                .background(
-                    if (notApplicable) AccentBlue.copy(alpha = 0.08f)
-                    else ZincSurfaceVariant
-                )
-                .border(
-                    width = 1.dp,
-                    color = if (notApplicable) AccentBlue.copy(alpha = 0.30f)
-                            else ZincBorder.copy(alpha = 0.4f),
-                    shape = RoundedCornerShape(12.dp)
-                )
-                .clickable { onToggleNotApplicable(); onDismiss() }
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-            contentAlignment = Alignment.Center
+                .background(if (notApplicable) AccentBlue.copy(alpha = 0.10f) else Color.Transparent)
+                .clickable { onToggleNotApplicable() }
+                .padding(horizontal = 20.dp, vertical = 18.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            // Status dot — accent when active, muted when inactive
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .clip(RoundedCornerShape(50))
+                    .background(if (notApplicable) AccentBlue else ZincBorder)
+            )
             Text(
-                text = if (notApplicable) "Clear N/A — mark as applicable" else "Set as Not Applicable",
+                text = if (notApplicable) "Clear Not Applicable" else "Mark as Not Applicable",
                 color = if (notApplicable) AccentBlue else ZincTextPrimary,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Medium,
-                textAlign = TextAlign.Center
+                modifier = Modifier.weight(1f)
             )
+            // Active badge — appears only when N/A is set
+            if (notApplicable) {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(AccentBlue.copy(alpha = 0.18f))
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = "N/A",
+                        color = AccentBlue,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
         }
 
-        Spacer(Modifier.height(20.dp))
-        HorizontalDivider(color = ZincBorder.copy(alpha = 0.5f), thickness = 1.dp)
-        Spacer(Modifier.height(16.dp))
+        // Edge-to-edge divider
+        HorizontalDivider(color = ZincSurfaceVariant, thickness = 1.dp)
 
-        // ── QUANTITY ────────────────────────────────────────────────────────
-        Text(
-            text = "QUANTITY",
-            color = ZincTextMuted,
-            fontSize = 10.sp,
-            letterSpacing = 1.sp,
-            fontWeight = FontWeight.Medium
-        )
-        Spacer(Modifier.height(12.dp))
-
+        // ── Quantity stepper ─────────────────────────────────────────────────
+        // Changes apply immediately on each tap (autosave pattern, no Save button).
+        // Fixed-width center box prevents +/- from shifting as digit count changes.
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 22.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
         ) {
+            // Minus — ZincBackground (zinc-950) against ZincSurface (zinc-900) = depth without border
             Box(
                 modifier = Modifier
                     .size(48.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(ZincSurfaceVariant)
-                    .border(1.dp, ZincBorder.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
-                    .clickable { if (quantity > 1) quantity-- },
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(ZincBackground)
+                    .clickable(
+                        enabled = quantity > 1,
+                        onClick = { quantity--; onQuantityChange(quantity) }
+                    ),
                 contentAlignment = Alignment.Center
             ) {
-                Text(text = "−", color = ZincTextPrimary, fontSize = 22.sp, fontWeight = FontWeight.Light)
+                Text(
+                    text = "−",
+                    color = if (quantity > 1) ZincTextPrimary else ZincTextMuted,
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Light
+                )
             }
-            Spacer(Modifier.width(32.dp))
-            Text(
-                text = "$quantity",
-                color = ZincTextPrimary,
-                fontSize = 34.sp,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(Modifier.width(32.dp))
+
+            // Fixed-width box keeps +/- anchored regardless of digit count
+            Box(
+                modifier = Modifier.width(96.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                AnimatedContent(
+                    targetState = quantity,
+                    label = "quantityRoll",
+                    transitionSpec = {
+                        if (targetState > initialState) {
+                            // Ticking up — new number rises from below, old exits upward
+                            (fadeIn(tween(200, easing = FastOutSlowInEasing)) +
+                                slideInVertically(tween(200, easing = FastOutSlowInEasing)) { it })
+                                .togetherWith(
+                                    fadeOut(tween(150, easing = LinearOutSlowInEasing)) +
+                                        slideOutVertically(tween(150, easing = LinearOutSlowInEasing)) { -it }
+                                )
+                        } else {
+                            // Ticking down — new number drops in from above
+                            (fadeIn(tween(200, easing = FastOutSlowInEasing)) +
+                                slideInVertically(tween(200, easing = FastOutSlowInEasing)) { -it })
+                                .togetherWith(
+                                    fadeOut(tween(150, easing = LinearOutSlowInEasing)) +
+                                        slideOutVertically(tween(150, easing = LinearOutSlowInEasing)) { it }
+                                )
+                        }.using(SizeTransform(clip = true, sizeAnimationSpec = { _, _ -> snap() }))
+                    }
+                ) { count ->
+                    Text(
+                        text = "$count",
+                        color = ZincTextPrimary,
+                        fontSize = 36.sp,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+
+            // Plus — same depth treatment
             Box(
                 modifier = Modifier
                     .size(48.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(ZincSurfaceVariant)
-                    .border(1.dp, ZincBorder.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
-                    .clickable { quantity++ },
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(ZincBackground)
+                    .clickable { quantity++; onQuantityChange(quantity) },
                 contentAlignment = Alignment.Center
             ) {
                 Text(text = "+", color = ZincTextPrimary, fontSize = 22.sp, fontWeight = FontWeight.Light)
             }
         }
 
-        Spacer(Modifier.height(24.dp))
-
-        // Save button
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
-                .background(AccentBlue)
-                .clickable { onSetQuantity(quantity); onDismiss() }
-                .padding(vertical = 15.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = "Save",
-                color = Color.White,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.SemiBold
-            )
-        }
+        Spacer(Modifier.height(4.dp))
     }
 }

@@ -14,7 +14,6 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -283,8 +282,7 @@ private fun ReportButton(totalBacklogUnits: Int?, onClick: () -> Unit) {
     val allClear = totalBacklogUnits == 0
     val interactive = !allClear
 
-    val bgColor = if (allClear) AccentEmerald.copy(alpha = 0.12f) else ZincSurface
-    val borderColor = if (allClear) AccentEmerald.copy(alpha = 0.4f) else Color.Transparent
+    val bgColor = if (allClear) AccentEmerald.copy(alpha = 0.16f) else ZincSurface
     val iconTint = if (allClear) AccentEmerald else AccentBlue
     val labelColor = if (allClear) AccentEmerald else ZincTextPrimary
     val labelText = if (allClear) "No Backlogs ✓" else "Backlog Report"
@@ -296,7 +294,6 @@ private fun ReportButton(totalBacklogUnits: Int?, onClick: () -> Unit) {
             .shadow(elevation = if (allClear) 0.dp else 6.dp, shape = RoundedCornerShape(16.dp))
             .clip(RoundedCornerShape(16.dp))
             .background(bgColor)
-            .border(1.dp, borderColor, RoundedCornerShape(16.dp))
             .then(if (interactive) Modifier.clickable { onClick() } else Modifier)
             .padding(horizontal = 16.dp, vertical = 14.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -442,14 +439,16 @@ private fun DayCell(
 
     if (status == DayStatus.OUTSIDE) return
 
-    val (targetBackground, contentColor, borderColor) = when (status) {
-        DayStatus.FUTURE           -> Triple(Color.Transparent, ZincTextPrimary, ZincBorder)
-        DayStatus.TODAY_INCOMPLETE -> Triple(AccentBlue, Color.White, null)
-        DayStatus.TODAY_COMPLETE   -> Triple(AccentEmerald, Color.White, null)
-        DayStatus.GREEN            -> Triple(AccentEmerald.copy(alpha = 0.9f), Color(0xFF022C22), null)
-        DayStatus.YELLOW           -> Triple(AccentAmber.copy(alpha = 0.9f), Color(0xFF451A03), null)
-        DayStatus.RED              -> Triple(AccentRed.copy(alpha = 0.85f), Color(0xFFFEF2F2), null)
-        DayStatus.OUTSIDE          -> Triple(Color.Transparent, Color.Transparent, null)
+    // FUTURE uses a solid ZincSurface background (one shade above ZincBackground)
+    // instead of a border — depth through tone, not stroke.
+    val (targetBackground, contentColor) = when (status) {
+        DayStatus.FUTURE           -> Pair(ZincSurface, ZincTextSecondary)
+        DayStatus.TODAY_INCOMPLETE -> Pair(AccentBlue, Color.White)
+        DayStatus.TODAY_COMPLETE   -> Pair(AccentEmerald, Color.White)
+        DayStatus.GREEN            -> Pair(AccentEmerald.copy(alpha = 0.9f), Color(0xFF022C22))
+        DayStatus.YELLOW           -> Pair(AccentAmber.copy(alpha = 0.9f), Color(0xFF451A03))
+        DayStatus.RED              -> Pair(AccentRed.copy(alpha = 0.85f), Color(0xFFFEF2F2))
+        DayStatus.OUTSIDE          -> Pair(Color.Transparent, Color.Transparent)
     }
 
     val background by animateColorAsState(targetValue = targetBackground, animationSpec = tween(200), label = "dayColor")
@@ -459,7 +458,6 @@ private fun DayCell(
             .fillMaxSize()
             .clip(RoundedCornerShape(16.dp))
             .background(background)
-            .let { if (borderColor != null) it.border(1.dp, borderColor, RoundedCornerShape(16.dp)) else it }
             .clickable(enabled = clickable) { onClick() },
         contentAlignment = Alignment.Center
     ) {
@@ -521,7 +519,7 @@ private fun KeyCard() {
                 modifier = Modifier
                     .size(14.dp)
                     .clip(CircleShape)
-                    .border(1.dp, ZincBorder, CircleShape)
+                    .background(ZincSurfaceVariant)
             )
             Text(text = "Future (locked)", color = ZincTextSecondary, fontSize = 13.sp)
         }

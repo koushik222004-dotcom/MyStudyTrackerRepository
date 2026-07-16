@@ -14,7 +14,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -476,8 +475,7 @@ private fun PendingBadge(pendingUnits: Int) {
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(50))
-                    .background(tint.copy(alpha = 0.18f))
-                    .border(1.dp, tint.copy(alpha = 0.40f), RoundedCornerShape(50))
+                    .background(tint.copy(alpha = 0.22f))
                     .padding(horizontal = 10.dp, vertical = 4.dp),
                 contentAlignment = Alignment.Center
             ) {
