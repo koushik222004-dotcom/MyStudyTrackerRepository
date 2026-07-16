@@ -65,14 +65,13 @@ import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.RadioButtonUnchecked
 import androidx.compose.material.icons.outlined.Videocam
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
-import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -559,37 +558,34 @@ private fun RemarkAttachmentsPanel(
                 letterSpacing = 1.sp
             )
             Spacer(Modifier.height(8.dp))
-            var remarkFocused by remember { mutableStateOf(false) }
-            Box(
+            OutlinedTextField(
+                value = text,
+                onValueChange = { text = it },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = 80.dp, max = remarkFieldMaxHeight)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(if (remarkFocused) ZincBorder else ZincSurfaceVariant)
-                    .padding(12.dp)
-            ) {
-                BasicTextField(
-                    value = text,
-                    onValueChange = { text = it },
-                    textStyle = TextStyle(fontSize = 14.sp, color = ZincTextPrimary),
-                    cursorBrush = SolidColor(AccentBlue),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .onFocusChanged { remarkFocused = it.isFocused },
-                    decorationBox = { innerTextField ->
-                        Box {
-                            if (text.isEmpty()) {
-                                Text(
-                                    text = "Add a remark for today...",
-                                    color = ZincTextMuted,
-                                    fontSize = 14.sp
-                                )
-                            }
-                            innerTextField()
-                        }
-                    }
-                )
-            }
+                    .heightIn(min = 80.dp, max = remarkFieldMaxHeight),
+                maxLines = Int.MAX_VALUE,
+                placeholder = {
+                    Text(
+                        text = "Add a remark for today...",
+                        color = ZincTextMuted,
+                        fontSize = 14.sp
+                    )
+                },
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = ZincBorder,
+                    unfocusedContainerColor = ZincSurfaceVariant,
+                    focusedTextColor = ZincTextPrimary,
+                    unfocusedTextColor = ZincTextPrimary,
+                    focusedBorderColor = Color.Transparent,
+                    unfocusedBorderColor = Color.Transparent,
+                    cursorColor = AccentBlue,
+                    focusedPlaceholderColor = ZincTextMuted,
+                    unfocusedPlaceholderColor = ZincTextMuted
+                ),
+                shape = RoundedCornerShape(12.dp),
+                textStyle = TextStyle(fontSize = 14.sp, color = ZincTextPrimary)
+            )
             Spacer(Modifier.height(20.dp))
         }
 
