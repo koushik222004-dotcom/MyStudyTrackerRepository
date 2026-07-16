@@ -66,15 +66,14 @@ import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.RadioButtonUnchecked
 import androidx.compose.material.icons.outlined.Videocam
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -195,6 +194,7 @@ fun ChecklistScreen(
     val completedCount by viewModel.completedUnits.collectAsState()
     val totalCount by viewModel.totalUnits.collectAsState()
     var sheetOpen by rememberSaveable { mutableStateOf(false) }
+    var leafMenuState by remember { mutableStateOf<LeafMenuState?>(null) }
     val allComplete = totalCount > 0 && completedCount >= totalCount
     val progressFraction = if (totalCount > 0) completedCount.toFloat() / totalCount else 0f
     val animatedProgressFraction by animateFloatAsState(
@@ -203,8 +203,13 @@ fun ChecklistScreen(
         label = "checklistProgress"
     )
 
-    // Hardware/gesture back closes the panel instead of leaving the screen while it's open.
-    BackHandler(enabled = sheetOpen) { sheetOpen = false }
+    // Hardware/gesture back closes whichever panel is open — R&A first, leaf menu second.
+    BackHandler(enabled = sheetOpen || leafMenuState != null) {
+        when {
+            sheetOpen -> sheetOpen = false
+            else -> leafMenuState = null
+        }
+    }
 
     Box(modifier = Modifier.fillMaxSize().background(ZincBackground)) {
         Column(
@@ -260,7 +265,8 @@ fun ChecklistScreen(
                         setQuantity = viewModel::setQuantity,
                         setNotApplicable = viewModel::setNotApplicable,
                         toggleGroup = viewModel::toggleGroup,
-                        toggleGroupNotApplicable = viewModel::toggleGroupNotApplicable
+                        toggleGroupNotApplicable = viewModel::toggleGroupNotApplicable,
+                        openLeafMenu = { state -> leafMenuState = state }
                     )
                 }
                 TaskCatalog.sections.forEach { section ->
@@ -330,6 +336,52 @@ fun ChecklistScreen(
                 },
                 onRemoveAttachment = { id -> viewModel.removeAttachment(id) }
             )
+        }
+
+        // ── Leaf task options panel ─────────────────────────────────────────────────────────
+        AnimatedVisibility(
+            visible = leafMenuState != null,
+            enter = fadeIn(tween(180)),
+            exit = fadeOut(tween(160)),
+            modifier = Modifier.fillMaxSize()
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.55f))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClickLabel = "Close",
+                        role = Role.Button
+                    ) { leafMenuState = null }
+            )
+        }
+
+        AnimatedVisibility(
+            visible = leafMenuState != null,
+            enter = fadeIn(tween(220)) +
+                scaleIn(tween(220), initialScale = 0.94f, transformOrigin = TransformOrigin(0.5f, 1f)),
+            exit = fadeOut(tween(160)) +
+                scaleOut(tween(160), targetScale = 0.96f, transformOrigin = TransformOrigin(0.5f, 1f)),
+            modifier = Modifier.align(Alignment.BottomCenter)
+        ) {
+            leafMenuState?.let { state ->
+                LeafActionMenu(
+                    title = state.title,
+                    notApplicable = state.notApplicable,
+                    targetCount = state.targetCount,
+                    onDismiss = { leafMenuState = null },
+                    onToggleNotApplicable = {
+                        viewModel.setNotApplicable(state.fullKey, !state.notApplicable)
+                        leafMenuState = null
+                    },
+                    onSetQuantity = { qty ->
+                        viewModel.setQuantity(state.fullKey, qty)
+                        leafMenuState = null
+                    }
+                )
+            }
         }
     }
 }
@@ -509,34 +561,42 @@ private fun RemarkAttachmentsPanel(
             letterSpacing = 1.sp
         )
         Spacer(Modifier.height(8.dp))
-        OutlinedTextField(
-            value = text,
-            onValueChange = { text = it },
+        var remarkFocused by remember { mutableStateOf(false) }
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 80.dp, max = remarkFieldMaxHeight),
-            maxLines = Int.MAX_VALUE,
-            placeholder = {
-                Text(
-                    text = "Add a remark for today...",
-                    color = ZincTextMuted,
-                    fontSize = 14.sp
+                .heightIn(min = 80.dp, max = remarkFieldMaxHeight)
+                .clip(RoundedCornerShape(12.dp))
+                .background(ZincSurfaceVariant)
+                .border(
+                    width = 1.dp,
+                    color = if (remarkFocused) AccentBlue else ZincBorder,
+                    shape = RoundedCornerShape(12.dp)
                 )
-            },
-            colors = TextFieldDefaults.colors(
-                focusedContainerColor = ZincSurfaceVariant,
-                unfocusedContainerColor = ZincSurfaceVariant,
-                focusedTextColor = ZincTextPrimary,
-                unfocusedTextColor = ZincTextPrimary,
-                focusedIndicatorColor = AccentBlue,
-                unfocusedIndicatorColor = ZincBorder,
-                cursorColor = AccentBlue,
-                focusedPlaceholderColor = ZincTextMuted,
-                unfocusedPlaceholderColor = ZincTextMuted
-            ),
-            shape = RoundedCornerShape(12.dp),
-            textStyle = TextStyle(fontSize = 14.sp, color = ZincTextPrimary)
-        )
+                .padding(12.dp)
+        ) {
+            BasicTextField(
+                value = text,
+                onValueChange = { text = it },
+                textStyle = TextStyle(fontSize = 14.sp, color = ZincTextPrimary),
+                cursorBrush = SolidColor(AccentBlue),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .onFocusChanged { remarkFocused = it.isFocused },
+                decorationBox = { innerTextField ->
+                    Box {
+                        if (text.isEmpty()) {
+                            Text(
+                                text = "Add a remark for today...",
+                                color = ZincTextMuted,
+                                fontSize = 14.sp
+                            )
+                        }
+                        innerTextField()
+                    }
+                }
+            )
+        }
 
         Spacer(Modifier.height(20.dp))
         HorizontalDivider(color = ZincBorder, thickness = 1.dp)
@@ -1044,12 +1104,20 @@ private fun LockableBottomBar(
 // ── Section & task tree ───────────────────────────────────────────────────────────────────────
 
 /** Bundles every checklist mutation the tree UI can trigger, so composables below only need one parameter. */
+private data class LeafMenuState(
+    val fullKey: String,
+    val title: String,
+    val notApplicable: Boolean,
+    val targetCount: Int
+)
+
 private data class ChecklistActions(
     val toggleLeaf: (String) -> Unit,
     val setQuantity: (String, Int) -> Unit,
     val setNotApplicable: (String, Boolean) -> Unit,
     val toggleGroup: (List<String>) -> Unit,
-    val toggleGroupNotApplicable: (List<String>) -> Unit
+    val toggleGroupNotApplicable: (List<String>) -> Unit,
+    val openLeafMenu: (LeafMenuState) -> Unit
 )
 
 // Depth-based child container shading: each level gets a progressively darker surface so
@@ -1386,8 +1454,6 @@ private fun LeafRow(
     val target = state?.targetCount ?: 1
     val completed = state?.completedCount ?: 0
     val done = state.isDone()
-    var menuOpen by remember { mutableStateOf(false) }
-
     val checkboxScale = remember { Animatable(1f) }
     LaunchedEffect(done) {
         if (done) {
@@ -1410,7 +1476,11 @@ private fun LeafRow(
             .combinedClickable(
                 enabled = !locked,
                 onClick = { actions.toggleLeaf(fullKey) },
-                onLongClick = { menuOpen = true }
+                onLongClick = {
+                    actions.openLeafMenu(
+                        LeafMenuState(fullKey, title, notApplicable, target)
+                    )
+                }
             )
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -1517,22 +1587,12 @@ private fun LeafRow(
         )
     }
 
-    if (menuOpen) {
-        LeafActionMenu(
-            title = title,
-            notApplicable = notApplicable,
-            targetCount = target,
-            onDismiss = { menuOpen = false },
-            onToggleNotApplicable = { actions.setNotApplicable(fullKey, !notApplicable) },
-            onSetQuantity = { qty -> actions.setQuantity(fullKey, qty) }
-        )
-    }
 }
 
 /**
- * Long-press action sheet for a single leaf task: toggle N/A and set a quantity > 1
- * (e.g. "3 DPP sessions today"). Rendered as a modern bottom-sheet style dialog —
- * tapping the dark scrim behind the panel dismisses without saving any change.
+ * Long-press action panel for a single leaf task — overlay-based, not a Dialog.
+ * Opening transition and positioning match the R&A panel exactly: fade + scale
+ * from the bottom anchor, scrim behind, back gesture aware at the screen level.
  */
 @Composable
 private fun LeafActionMenu(
@@ -1545,162 +1605,162 @@ private fun LeafActionMenu(
 ) {
     var quantity by remember(targetCount) { mutableStateOf(targetCount) }
 
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(max = 560.dp)
+            .shadow(elevation = 32.dp, shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+            .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+            .background(ZincSurface)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+            ) {}
+            .verticalScroll(rememberScrollState())
+            .navigationBarsPadding()
+            .padding(horizontal = 20.dp)
+            .padding(top = 20.dp, bottom = 20.dp)
     ) {
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.BottomCenter
+        // ── Header ──────────────────────────────────────────────────────────
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            // Scrim — tapping outside dismisses without saving
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Task Options",
+                    color = ZincTextPrimary,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = title,
+                    color = ZincTextMuted,
+                    fontSize = 11.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            IconButton(
+                onClick = onDismiss,
+                modifier = Modifier.size(36.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Close,
+                    contentDescription = "Close",
+                    tint = ZincTextMuted,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+        }
+
+        Spacer(Modifier.height(20.dp))
+
+        // ── NOT APPLICABLE ──────────────────────────────────────────────────
+        Text(
+            text = "NOT APPLICABLE",
+            color = ZincTextMuted,
+            fontSize = 10.sp,
+            letterSpacing = 1.sp,
+            fontWeight = FontWeight.Medium
+        )
+        Spacer(Modifier.height(8.dp))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(
+                    if (notApplicable) AccentBlue.copy(alpha = 0.08f)
+                    else ZincSurfaceVariant
+                )
+                .border(
+                    width = 1.dp,
+                    color = if (notApplicable) AccentBlue.copy(alpha = 0.30f)
+                            else ZincBorder.copy(alpha = 0.4f),
+                    shape = RoundedCornerShape(12.dp)
+                )
+                .clickable { onToggleNotApplicable(); onDismiss() }
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = if (notApplicable) "Clear N/A — mark as applicable" else "Set as Not Applicable",
+                color = if (notApplicable) AccentBlue else ZincTextPrimary,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium,
+                textAlign = TextAlign.Center
+            )
+        }
+
+        Spacer(Modifier.height(20.dp))
+        HorizontalDivider(color = ZincBorder.copy(alpha = 0.5f), thickness = 1.dp)
+        Spacer(Modifier.height(16.dp))
+
+        // ── QUANTITY ────────────────────────────────────────────────────────
+        Text(
+            text = "QUANTITY",
+            color = ZincTextMuted,
+            fontSize = 10.sp,
+            letterSpacing = 1.sp,
+            fontWeight = FontWeight.Medium
+        )
+        Spacer(Modifier.height(12.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
             Box(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.48f))
-                    .clickable(
-                        indication = null,
-                        interactionSource = remember { MutableInteractionSource() }
-                    ) { onDismiss() }
-            )
-
-            // Panel — same visual shell as the R&A panel
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 560.dp)
-                    .shadow(elevation = 32.dp, shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
-                    .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
-                    .background(ZincSurface)
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) {}
-                    .verticalScroll(rememberScrollState())
-                    .navigationBarsPadding()
-                    .padding(horizontal = 20.dp)
-                    .padding(top = 20.dp, bottom = 24.dp)
+                    .size(48.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(ZincSurfaceVariant)
+                    .border(1.dp, ZincBorder.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
+                    .clickable { if (quantity > 1) quantity-- },
+                contentAlignment = Alignment.Center
             ) {
-                // Header — title left, close button right
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = title,
-                        color = ZincTextPrimary,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.weight(1f)
-                    )
-                    IconButton(onClick = onDismiss) {
-                        Icon(
-                            imageVector = Icons.Filled.Close,
-                            contentDescription = "Close",
-                            tint = ZincTextMuted
-                        )
-                    }
-                }
-
-                Spacer(Modifier.height(20.dp))
-
-                // N/A toggle row — centered text, blue tint when active, no badge
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(
-                            if (notApplicable) AccentBlue.copy(alpha = 0.08f)
-                            else ZincSurfaceVariant
-                        )
-                        .border(
-                            width = 1.dp,
-                            color = if (notApplicable) AccentBlue.copy(alpha = 0.3f)
-                                    else Color.Transparent,
-                            shape = RoundedCornerShape(14.dp)
-                        )
-                        .clickable { onToggleNotApplicable(); onDismiss() }
-                        .padding(horizontal = 16.dp, vertical = 14.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = if (notApplicable) "Clear N/A" else "Set as N/A",
-                        color = if (notApplicable) AccentBlue else ZincTextPrimary,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Medium,
-                        textAlign = TextAlign.Center
-                    )
-                }
-
-                Spacer(Modifier.height(22.dp))
-
-                // Quantity section
-                Text(
-                    text = "QUANTITY",
-                    color = ZincTextMuted,
-                    fontSize = 10.sp,
-                    letterSpacing = 1.sp,
-                    fontWeight = FontWeight.Medium
-                )
-                Spacer(Modifier.height(14.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(48.dp)
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(ZincSurfaceVariant)
-                            .border(1.dp, ZincBorder.copy(alpha = 0.4f), RoundedCornerShape(14.dp))
-                            .clickable { if (quantity > 1) quantity-- },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(text = "−", color = ZincTextPrimary, fontSize = 22.sp, fontWeight = FontWeight.Light)
-                    }
-                    Spacer(Modifier.width(32.dp))
-                    Text(
-                        text = "$quantity",
-                        color = ZincTextPrimary,
-                        fontSize = 34.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(Modifier.width(32.dp))
-                    Box(
-                        modifier = Modifier
-                            .size(48.dp)
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(ZincSurfaceVariant)
-                            .border(1.dp, ZincBorder.copy(alpha = 0.4f), RoundedCornerShape(14.dp))
-                            .clickable { quantity++ },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(text = "+", color = ZincTextPrimary, fontSize = 22.sp, fontWeight = FontWeight.Light)
-                    }
-                }
-
-                Spacer(Modifier.height(30.dp))
-
-                // Save button
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(AccentBlue)
-                        .clickable { onSetQuantity(quantity); onDismiss() }
-                        .padding(vertical = 16.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "Save",
-                        color = Color.White,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
+                Text(text = "−", color = ZincTextPrimary, fontSize = 22.sp, fontWeight = FontWeight.Light)
             }
+            Spacer(Modifier.width(32.dp))
+            Text(
+                text = "$quantity",
+                color = ZincTextPrimary,
+                fontSize = 34.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(Modifier.width(32.dp))
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(ZincSurfaceVariant)
+                    .border(1.dp, ZincBorder.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
+                    .clickable { quantity++ },
+                contentAlignment = Alignment.Center
+            ) {
+                Text(text = "+", color = ZincTextPrimary, fontSize = 22.sp, fontWeight = FontWeight.Light)
+            }
+        }
+
+        Spacer(Modifier.height(24.dp))
+
+        // Save button
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(AccentBlue)
+                .clickable { onSetQuantity(quantity); onDismiss() }
+                .padding(vertical = 15.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "Save",
+                color = Color.White,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold
+            )
         }
     }
 }
