@@ -1,0 +1,1 @@
+- [Secrets not inherited by shell subprocesses](codeexecution-secrets-subshell.md) — requested secrets are in `process.env` inside the impure JS function but NOT passed through to bash/execSync subprocesses; embed the value directly in the command string instead of `$VAR`.
