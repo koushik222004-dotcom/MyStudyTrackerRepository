@@ -299,14 +299,23 @@ private fun SectionBacklogCard(section: BacklogNode) {
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.weight(1f)
             )
-            Icon(
-                imageVector = Icons.Filled.ChevronRight,
-                contentDescription = if (expanded) "Collapse" else "Expand",
-                tint = ZincTextMuted,
-                modifier = Modifier.size(16.dp).rotate(chevronRotation)
-            )
-            Spacer(Modifier.width(8.dp))
-            PendingBadge(pendingUnits = section.pendingUnits)
+            // Fixed trailing zone — chevron X is anchored to the viewbox, never
+            // to the pill content, so it stays at the same position on every row.
+            Box(
+                modifier = Modifier.width(80.dp),
+                contentAlignment = Alignment.CenterEnd
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.ChevronRight,
+                    contentDescription = if (expanded) "Collapse" else "Expand",
+                    tint = ZincTextMuted,
+                    modifier = Modifier
+                        .size(16.dp)
+                        .align(Alignment.CenterStart)
+                        .rotate(chevronRotation)
+                )
+                PendingBadge(pendingUnits = section.pendingUnits)
+            }
         }
 
         AnimatedVisibility(
@@ -374,14 +383,23 @@ private fun BacklogNodeRow(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f)
             )
-            Icon(
-                imageVector = Icons.Filled.ChevronRight,
-                contentDescription = if (expanded) "Collapse" else "Expand",
-                tint = ZincTextMuted,
-                modifier = Modifier.size(14.dp).rotate(chevronRotation)
-            )
-            Spacer(Modifier.width(6.dp))
-            PendingBadge(pendingUnits = node.pendingUnits)
+            // Fixed trailing zone — chevron X is anchored to the viewbox, never
+            // to the pill content, so it stays at the same position on every row.
+            Box(
+                modifier = Modifier.width(80.dp),
+                contentAlignment = Alignment.CenterEnd
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.ChevronRight,
+                    contentDescription = if (expanded) "Collapse" else "Expand",
+                    tint = ZincTextMuted,
+                    modifier = Modifier
+                        .size(16.dp)
+                        .align(Alignment.CenterStart)
+                        .rotate(chevronRotation)
+                )
+                PendingBadge(pendingUnits = node.pendingUnits)
+            }
         }
 
         AnimatedVisibility(
@@ -451,7 +469,7 @@ private fun PendingBadge(pendingUnits: Int) {
     // Fixed-width view box — right-edges align across all rows.
     // Content scrolls horizontally if the number overflows the box.
     Box(
-        modifier = Modifier.width(56.dp),
+        modifier = Modifier.width(60.dp),
         contentAlignment = Alignment.CenterEnd
     ) {
         Row(modifier = Modifier.horizontalScroll(rememberScrollState())) {
