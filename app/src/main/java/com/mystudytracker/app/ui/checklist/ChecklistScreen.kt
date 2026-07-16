@@ -214,10 +214,9 @@ fun ChecklistScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .statusBarsPadding()
-                .verticalScroll(rememberScrollState())
                 .navigationBarsPadding()
-                .padding(bottom = 84.dp)
         ) {
+            // ── Fixed header — stays on screen while content scrolls ─────────
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -249,32 +248,40 @@ fun ChecklistScreen(
                 RemarkAttachmentBadge(active = hasContent, onClick = { sheetOpen = true })
             }
 
-            Spacer(Modifier.height(8.dp))
-
+            // ── Scrollable body ─────────────────────────────────────────────
             Column(
                 modifier = Modifier
-                    .padding(horizontal = 16.dp)
-                    .alpha(if (locked) 0.55f else 1f),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState())
+                    .padding(bottom = 84.dp)
             ) {
-                val actions = remember(viewModel) {
-                    ChecklistActions(
-                        toggleLeaf = viewModel::toggleLeaf,
-                        setQuantity = viewModel::setQuantity,
-                        setNotApplicable = viewModel::setNotApplicable,
-                        toggleGroup = viewModel::toggleGroup,
-                        toggleGroupNotApplicable = viewModel::toggleGroupNotApplicable,
-                        openLeafMenu = { state -> leafMenuState = state }
-                    )
-                }
-                TaskCatalog.sections.forEach { section ->
-                    SectionCard(
-                        section = section,
-                        date = date,
-                        taskStates = taskStates,
-                        locked = locked,
-                        actions = actions
-                    )
+                Spacer(Modifier.height(8.dp))
+
+                Column(
+                    modifier = Modifier
+                        .padding(horizontal = 16.dp)
+                        .alpha(if (locked) 0.55f else 1f),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    val actions = remember(viewModel) {
+                        ChecklistActions(
+                            toggleLeaf = viewModel::toggleLeaf,
+                            setQuantity = viewModel::setQuantity,
+                            setNotApplicable = viewModel::setNotApplicable,
+                            toggleGroup = viewModel::toggleGroup,
+                            toggleGroupNotApplicable = viewModel::toggleGroupNotApplicable,
+                            openLeafMenu = { state -> leafMenuState = state }
+                        )
+                    }
+                    TaskCatalog.sections.forEach { section ->
+                        SectionCard(
+                            section = section,
+                            date = date,
+                            taskStates = taskStates,
+                            locked = locked,
+                            actions = actions
+                        )
+                    }
                 }
             }
         }
