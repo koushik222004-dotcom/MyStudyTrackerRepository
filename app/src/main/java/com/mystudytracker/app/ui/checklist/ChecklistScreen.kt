@@ -257,7 +257,7 @@ fun ChecklistScreen(
                     .verticalScroll(rememberScrollState())
                     .padding(bottom = 84.dp)
             ) {
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(12.dp))
 
                 Column(
                     modifier = Modifier
@@ -381,7 +381,7 @@ fun ChecklistScreen(
                     onDismiss = { leafMenuState = null },
                     onToggleNotApplicable = {
                         viewModel.setNotApplicable(state.fullKey, !state.notApplicable)
-                        leafMenuState = null
+                        leafMenuState = state.copy(notApplicable = !state.notApplicable)
                     },
                     onQuantityChange = { qty ->
                         viewModel.setQuantity(state.fullKey, qty)
@@ -522,6 +522,7 @@ private fun RemarkAttachmentsPanel(
             ) {}
             .verticalScroll(rememberScrollState())
             .navigationBarsPadding()
+            .imePadding()
     ) {
         // ── Header ──────────────────────────────────────────────────────────
         // Carries its own horizontal padding.
@@ -1277,6 +1278,7 @@ private fun GroupRow(
 ) {
     var expanded by remember(fullKey) { mutableStateOf(false) }
     val leafKeys = remember(node, parentPrefix) { TaskCatalog.leafKeysUnder(node, parentPrefix) }
+    val groupState = aggregateState(leafKeys, taskStates)
     val chevronRotation by animateFloatAsState(
         targetValue = if (expanded) 90f else 0f,
         animationSpec = tween(200),
@@ -1307,6 +1309,7 @@ private fun GroupRow(
                 fontWeight = FontWeight.Normal,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
+                textDecoration = if (groupState == GroupState.DONE) TextDecoration.LineThrough else TextDecoration.None,
                 modifier = Modifier.weight(1f)
             )
             Spacer(Modifier.width(8.dp))
@@ -1327,7 +1330,7 @@ private fun GroupRow(
                 contentAlignment = Alignment.CenterEnd
             ) {
                 UnifiedCheckbox(
-                    state = aggregateState(leafKeys, taskStates),
+                    state = groupState,
                     modifier = Modifier
                         .clickable(enabled = !locked) { actions.toggleGroup(leafKeys) }
                 )
@@ -1618,15 +1621,24 @@ private fun LeafActionMenu(
                 .padding(start = 20.dp, end = 8.dp, top = 20.dp, bottom = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = title,
-                color = ZincTextPrimary,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f)
-            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "TASK OPTIONS",
+                    color = ZincTextMuted,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Medium,
+                    letterSpacing = 1.2.sp
+                )
+                Spacer(Modifier.height(3.dp))
+                Text(
+                    text = title,
+                    color = ZincTextPrimary,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
             IconButton(
                 onClick = onDismiss,
                 modifier = Modifier.size(36.dp)
@@ -1699,12 +1711,12 @@ private fun LeafActionMenu(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
         ) {
-            // Minus — ZincBackground (zinc-950) against ZincSurface (zinc-900) = depth without border
+            // Minus — ZincSurfaceVariant lifts above ZincSurface panel without sinking into it
             Box(
                 modifier = Modifier
                     .size(48.dp)
                     .clip(RoundedCornerShape(14.dp))
-                    .background(ZincBackground)
+                    .background(ZincSurfaceVariant)
                     .clickable(
                         enabled = quantity > 1,
                         onClick = { quantity--; onQuantityChange(quantity) }
@@ -1762,7 +1774,7 @@ private fun LeafActionMenu(
                 modifier = Modifier
                     .size(48.dp)
                     .clip(RoundedCornerShape(14.dp))
-                    .background(ZincBackground)
+                    .background(ZincSurfaceVariant)
                     .clickable { quantity++; onQuantityChange(quantity) },
                 contentAlignment = Alignment.Center
             ) {
