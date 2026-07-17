@@ -523,7 +523,6 @@ private fun RemarkAttachmentsPanel(
             ) {}
             .verticalScroll(rememberScrollState())
             .navigationBarsPadding()
-            .imePadding()
     ) {
         // ── Header ──────────────────────────────────────────────────────────
         // Carries its own horizontal padding.
@@ -1280,6 +1279,12 @@ private fun GroupRow(
     var expanded by remember(fullKey) { mutableStateOf(false) }
     val leafKeys = remember(node, parentPrefix) { TaskCatalog.leafKeysUnder(node, parentPrefix) }
     val groupState = aggregateState(leafKeys, taskStates)
+    val labelColor by animateColorAsState(
+        targetValue = if (groupState == GroupState.EXCLUDED || groupState == GroupState.DONE)
+            ZincTextMuted else ZincTextPrimary,
+        animationSpec = tween(200),
+        label = "groupLabelColor_$fullKey"
+    )
     val chevronRotation by animateFloatAsState(
         targetValue = if (expanded) 90f else 0f,
         animationSpec = tween(200),
@@ -1305,7 +1310,7 @@ private fun GroupRow(
             // with the row growing to fit via heightIn(min).
             Text(
                 text = node.title,
-                color = ZincTextPrimary,
+                color = labelColor,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Normal,
                 maxLines = 2,
@@ -1387,6 +1392,15 @@ private fun GroupRow(
  */
 @Composable
 private fun UnifiedCheckbox(state: GroupState, modifier: Modifier = Modifier) {
+    // Scale bounce — fires whenever state transitions to DONE, matching LeafRow behaviour.
+    val checkboxScale = remember { Animatable(1f) }
+    LaunchedEffect(state) {
+        if (state == GroupState.DONE) {
+            checkboxScale.animateTo(1.18f, tween(90))
+            checkboxScale.animateTo(1f, tween(90))
+        }
+    }
+
     // EXCLUDED uses a variable-width pill — solid ZincBorder background creates
     // clear depth against the ZincSurface card without needing an explicit border stroke.
     if (state == GroupState.EXCLUDED) {
@@ -1409,32 +1423,48 @@ private fun UnifiedCheckbox(state: GroupState, modifier: Modifier = Modifier) {
         return
     }
 
-    val bgColor = when (state) {
-        GroupState.DONE    -> AccentEmerald
-        GroupState.PARTIAL -> AccentBlue.copy(alpha = 0.22f)
-        else               -> ZincSurfaceVariant // EMPTY — solid subtle bg, no border
-    }
+    val bgColor by animateColorAsState(
+        targetValue = when (state) {
+            GroupState.DONE    -> AccentEmerald
+            GroupState.PARTIAL -> AccentBlue.copy(alpha = 0.22f)
+            else               -> ZincSurfaceVariant // EMPTY
+        },
+        animationSpec = tween(200),
+        label = "checkboxBg"
+    )
     Box(
         modifier = modifier
             .size(22.dp)
+            .scale(checkboxScale.value)
             .clip(RoundedCornerShape(6.dp))
             .background(bgColor),
         contentAlignment = Alignment.Center
     ) {
-        when (state) {
-            GroupState.DONE -> Icon(
+        // Check icon — fades + scales in when DONE, matching the leaf checkbox animation.
+        androidx.compose.animation.AnimatedVisibility(
+            visible = state == GroupState.DONE,
+            enter = fadeIn(tween(120)) + scaleIn(tween(120), initialScale = 0.6f),
+            exit  = fadeOut(tween(80))  + scaleOut(tween(80),  targetScale  = 0.6f)
+        ) {
+            Icon(
                 imageVector = Icons.Filled.Check,
                 contentDescription = null,
                 tint = ZincBackground,
                 modifier = Modifier.size(14.dp)
             )
-            GroupState.PARTIAL -> Icon(
+        }
+        // Remove icon — same fade + scale for PARTIAL.
+        androidx.compose.animation.AnimatedVisibility(
+            visible = state == GroupState.PARTIAL,
+            enter = fadeIn(tween(120)) + scaleIn(tween(120), initialScale = 0.6f),
+            exit  = fadeOut(tween(80))  + scaleOut(tween(80),  targetScale  = 0.6f)
+        ) {
+            Icon(
                 imageVector = Icons.Filled.Remove,
                 contentDescription = null,
                 tint = AccentBlue,
                 modifier = Modifier.size(13.dp)
             )
-            else -> { /* EMPTY — solid bg, no icon */ }
         }
     }
 }
@@ -1474,7 +1504,10 @@ private fun LeafRow(
             .clip(RoundedCornerShape(10.dp))
             .combinedClickable(
                 enabled = !locked,
-                onClick = { actions.toggleLeaf(fullKey) },
+                onClick = {
+                    if (notApplicable) actions.setNotApplicable(fullKey, false)
+                    else actions.toggleLeaf(fullKey)
+                },
                 onLongClick = {
                     actions.openLeafMenu(
                         LeafMenuState(fullKey, title, notApplicable, target)
@@ -1681,21 +1714,21 @@ private fun LeafActionMenu(
                 fontWeight = FontWeight.Medium,
                 modifier = Modifier.weight(1f)
             )
-            // Active badge — appears only when N/A is set
-            if (notApplicable) {
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(AccentBlue.copy(alpha = 0.18f))
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                ) {
-                    Text(
-                        text = "N/A",
-                        color = AccentBlue,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
+            // Active badge — always reserves its space so the row height never shifts;
+            // alpha hides it when N/A is off.
+            Box(
+                modifier = Modifier
+                    .alpha(if (notApplicable) 1f else 0f)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(AccentBlue.copy(alpha = 0.18f))
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+            ) {
+                Text(
+                    text = "N/A",
+                    color = AccentBlue,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold
+                )
             }
         }
 
