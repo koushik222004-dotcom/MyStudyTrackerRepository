@@ -331,7 +331,7 @@ fun ChecklistScreen(
                 scaleIn(tween(220), initialScale = 0.94f, transformOrigin = TransformOrigin(0.5f, 1f)),
             exit = fadeOut(tween(160)) +
                 scaleOut(tween(160), targetScale = 0.96f, transformOrigin = TransformOrigin(0.5f, 1f)),
-            modifier = Modifier.align(Alignment.BottomCenter)
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 6.dp)
         ) {
             RemarkAttachmentsPanel(
                 date = date,
@@ -1423,15 +1423,13 @@ private fun UnifiedCheckbox(state: GroupState, modifier: Modifier = Modifier) {
         return
     }
 
-    val bgColor by animateColorAsState(
-        targetValue = when (state) {
-            GroupState.DONE    -> AccentEmerald
-            GroupState.PARTIAL -> AccentBlue.copy(alpha = 0.22f)
-            else               -> ZincSurfaceVariant // EMPTY
-        },
-        animationSpec = tween(200),
-        label = "checkboxBg"
-    )
+    // Hard color switch — matches the leaf checkbox which also snaps instantly,
+    // letting the scale bounce and icon fade carry all the animation weight.
+    val bgColor = when (state) {
+        GroupState.DONE    -> AccentEmerald
+        GroupState.PARTIAL -> AccentBlue.copy(alpha = 0.22f)
+        else               -> ZincSurfaceVariant // EMPTY
+    }
     Box(
         modifier = modifier
             .size(22.dp)
