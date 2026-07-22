@@ -331,7 +331,7 @@ fun ChecklistScreen(
                 scaleIn(tween(220), initialScale = 0.94f, transformOrigin = TransformOrigin(0.5f, 1f)),
             exit = fadeOut(tween(160)) +
                 scaleOut(tween(160), targetScale = 0.96f, transformOrigin = TransformOrigin(0.5f, 1f)),
-            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 6.dp)
+            modifier = Modifier.align(Alignment.BottomCenter)
         ) {
             RemarkAttachmentsPanel(
                 date = date,
@@ -710,6 +710,7 @@ private fun RemarkAttachmentsPanel(
             }
             Spacer(Modifier.height(20.dp))
         }
+        Spacer(Modifier.height(6.dp))
     }
 }
 
