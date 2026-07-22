@@ -325,25 +325,27 @@ fun ChecklistScreen(
             )
         }
 
-        AnimatedVisibility(
-            visible = sheetOpen,
-            enter = fadeIn(tween(220)) +
-                scaleIn(tween(220), initialScale = 0.94f, transformOrigin = TransformOrigin(0.5f, 1f)),
-            exit = fadeOut(tween(160)) +
-                scaleOut(tween(160), targetScale = 0.96f, transformOrigin = TransformOrigin(0.5f, 1f)),
-            modifier = Modifier.align(Alignment.BottomCenter).imePadding()
-        ) {
-            RemarkAttachmentsPanel(
-                date = date,
-                initialNote = note,
-                attachments = attachments,
-                onDismiss = { sheetOpen = false },
-                onSaveNote = { text -> viewModel.saveNote(text) },
-                onAddAttachment = { filePath, type, displayName ->
-                    viewModel.addAttachment(filePath, type, displayName)
-                },
-                onRemoveAttachment = { id -> viewModel.removeAttachment(id) }
-            )
+        Box(modifier = Modifier.fillMaxSize().imePadding()) {
+            AnimatedVisibility(
+                visible = sheetOpen,
+                enter = fadeIn(tween(220)) +
+                    scaleIn(tween(220), initialScale = 0.94f, transformOrigin = TransformOrigin(0.5f, 1f)),
+                exit = fadeOut(tween(160)) +
+                    scaleOut(tween(160), targetScale = 0.96f, transformOrigin = TransformOrigin(0.5f, 1f)),
+                modifier = Modifier.align(Alignment.BottomCenter)
+            ) {
+                RemarkAttachmentsPanel(
+                    date = date,
+                    initialNote = note,
+                    attachments = attachments,
+                    onDismiss = { sheetOpen = false },
+                    onSaveNote = { text -> viewModel.saveNote(text) },
+                    onAddAttachment = { filePath, type, displayName ->
+                        viewModel.addAttachment(filePath, type, displayName)
+                    },
+                    onRemoveAttachment = { id -> viewModel.removeAttachment(id) }
+                )
+            }
         }
 
         // ── Leaf task options panel ─────────────────────────────────────────────────────────
