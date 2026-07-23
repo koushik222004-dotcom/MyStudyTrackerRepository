@@ -9,6 +9,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -450,9 +451,7 @@ private fun ActionButton(
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .background(if (enabled) containerColor else containerColor.copy(alpha = 0.4f))
-            .then(if (enabled) Modifier.run {
-                this.then(androidx.compose.foundation.clickable(onClick = onClick))
-            } else Modifier)
+            .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(vertical = 12.dp),
         contentAlignment = Alignment.Center
     ) {
