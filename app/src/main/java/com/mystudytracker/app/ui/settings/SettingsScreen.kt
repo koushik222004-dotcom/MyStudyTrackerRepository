@@ -85,14 +85,8 @@ fun SettingsScreen(
     val scope          = rememberCoroutineScope()
     val snackbar       = remember { SnackbarHostState() }
 
-    val allProgress  by viewModel.allProgress.collectAsState()
     val backupState  by viewModel.backupState.collectAsState()
     val lastBackupAt by viewModel.lastBackupAt.collectAsState()
-
-    // ── Derived stats ─────────────────────────────────────────────────────────
-    val daysTracked    = allProgress.size
-    val totalCompleted = allProgress.sumOf { it.completedUnits }
-    val trackingSince  = allProgress.minByOrNull { it.date }?.date
 
     // ── Restart dialog ────────────────────────────────────────────────────────
     var showRestartDialog by remember { mutableStateOf(false) }
@@ -281,34 +275,6 @@ fun SettingsScreen(
                     }
                 }
 
-                Spacer(Modifier.height(28.dp))
-
-                // ── Section: Your Data ────────────────────────────────────────
-                SectionLabel("Your Data")
-                Spacer(Modifier.height(8.dp))
-
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(ZincSurface)
-                        .border(1.dp, ZincBorder.copy(alpha = 0.5f), RoundedCornerShape(16.dp))
-                ) {
-                    StatRow(label = "Days Tracked", value = if (daysTracked > 0) "$daysTracked" else "—")
-                    HorizontalDivider(
-                        modifier = Modifier.padding(horizontal = 16.dp),
-                        color = ZincBorder.copy(alpha = 0.4f)
-                    )
-                    StatRow(label = "Tasks Completed", value = if (daysTracked > 0) "$totalCompleted" else "—")
-                    if (trackingSince != null) {
-                        HorizontalDivider(
-                            modifier = Modifier.padding(horizontal = 16.dp),
-                            color = ZincBorder.copy(alpha = 0.4f)
-                        )
-                        StatRow(label = "Tracking Since", value = formatDate(trackingSince))
-                    }
-                }
-
                 Spacer(Modifier.height(40.dp))
 
                 // ── App info ──────────────────────────────────────────────────
@@ -422,20 +388,6 @@ private fun SectionLabel(text: String) {
         letterSpacing = 0.8.sp,
         modifier   = Modifier.padding(horizontal = 4.dp)
     )
-}
-
-@Composable
-private fun StatRow(label: String, value: String) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 14.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment     = Alignment.CenterVertically
-    ) {
-        Text(text = label, color = ZincTextSecondary, fontSize = 14.sp)
-        Text(text = value, color = ZincTextPrimary,   fontSize = 14.sp, fontWeight = FontWeight.Medium)
-    }
 }
 
 @Composable
