@@ -32,6 +32,8 @@ import com.mystudytracker.app.ui.checklist.ChecklistScreen
 import com.mystudytracker.app.ui.checklist.ChecklistViewModel
 import com.mystudytracker.app.ui.report.ReportScreen
 import com.mystudytracker.app.ui.report.ReportViewModel
+import com.mystudytracker.app.ui.settings.SettingsScreen
+import com.mystudytracker.app.ui.settings.SettingsViewModel
 import com.mystudytracker.app.ui.splash.SplashScreen
 import com.mystudytracker.app.ui.theme.MyStudyTrackerTheme
 import com.mystudytracker.app.util.DateIntegrityManager
@@ -108,7 +110,18 @@ private fun MyStudyTrackerNavHost(repository: ProgressRepository) {
             CalendarScreen(
                 viewModel = viewModel,
                 onDateSelected = { date -> navController.navigate("dateSplash/$date") },
-                onOpenReport = { navController.navigate("report") }
+                onOpenReport = { navController.navigate("report") },
+                onOpenSettings = { navController.navigate("settings") }
+            )
+        }
+        composable("settings") {
+            val context = LocalContext.current
+            val viewModel: SettingsViewModel = viewModel(
+                factory = SettingsViewModel.factory(repository, context.applicationContext)
+            )
+            SettingsScreen(
+                viewModel = viewModel,
+                onBack = { navController.popBackStack() }
             )
         }
         composable("report") {

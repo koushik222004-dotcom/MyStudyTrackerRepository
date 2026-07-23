@@ -39,6 +39,7 @@ import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.WarningAmber
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -86,7 +87,8 @@ private val WEEKDAY_LABELS = listOf("S", "M", "T", "W", "T", "F", "S")
 fun CalendarScreen(
     viewModel: CalendarViewModel,
     onDateSelected: (LocalDate) -> Unit,
-    onOpenReport: () -> Unit
+    onOpenReport: () -> Unit,
+    onOpenSettings: () -> Unit
 ) {
     val progressByDate by viewModel.progressByDate.collectAsState()
     val trackedToday by viewModel.today.collectAsState()
@@ -268,8 +270,31 @@ fun CalendarScreen(
             }
         }
 
-        // Backlog Report button — turns green and disabled when fully caught up.
-        ReportButton(totalBacklogUnits = totalBacklogUnits, onClick = onOpenReport)
+        // Backlog Report + Settings button — share the same horizontal row.
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(modifier = Modifier.weight(1f)) {
+                ReportButton(totalBacklogUnits = totalBacklogUnits, onClick = onOpenReport)
+            }
+            Box(
+                modifier = Modifier
+                    .size(52.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(ZincSurface)
+                    .clickable { onOpenSettings() },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Settings,
+                    contentDescription = "Settings",
+                    tint = ZincTextSecondary,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
         Spacer(Modifier.height(12.dp))
         KeyCard()
         Spacer(Modifier.height(20.dp))

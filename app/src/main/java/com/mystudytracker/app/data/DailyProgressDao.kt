@@ -21,8 +21,17 @@ interface DailyProgressDao {
     @Query("UPDATE daily_progress SET note = :note WHERE date = :date")
     suspend fun updateNote(date: String, note: String?): Int
 
+    @Query("SELECT * FROM daily_progress")
+    suspend fun getAll(): List<DailyProgress>
+
+    @Query("DELETE FROM daily_progress")
+    suspend fun deleteAll()
+
     @Upsert
     suspend fun upsert(progress: DailyProgress)
+
+    @Upsert
+    suspend fun upsertAll(list: List<DailyProgress>)
 
     /**
      * Overwrites just the denormalized completed/total unit counts for [date], preserving any

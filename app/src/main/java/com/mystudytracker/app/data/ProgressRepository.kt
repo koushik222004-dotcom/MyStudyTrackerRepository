@@ -1,6 +1,11 @@
 package com.mystudytracker.app.data
 
 import androidx.room.withTransaction
+import com.mystudytracker.app.data.backup.BackupPayload
+import com.mystudytracker.app.data.backup.toBackupEntry
+import com.mystudytracker.app.data.backup.toDailyAttachment
+import com.mystudytracker.app.data.backup.toDailyProgress
+import com.mystudytracker.app.data.backup.toDailyTaskState
 import java.io.File
 import kotlinx.coroutines.flow.Flow
 
@@ -171,5 +176,34 @@ class ProgressRepository(
         val path = attachmentDao.getFilePath(id)
         path?.let { File(it).delete() }
         attachmentDao.deleteById(id)
+    }
+
+    // ── Backup & Restore ──────────────────────────────────────────────────────────────────────
+
+    /** Collects every row from all three tables into a single [BackupPayload] for encryption. */
+    suspend fun getAllDataForBackup(): BackupPayload = BackupPayload(
+        exportedAt = System.currentTimeMillis(),
+        dailyProgress    = dao.getAll().map          { it.toBackupEntry() },
+        dailyTaskStates  = taskStateDao.getAll().map  { it.toBackupEntry() },
+        dailyAttachments = attachmentDao.getAll().map { it.toBackupEntry() }
+    )
+
+    /**
+     * Atomically replaces all data with the contents of [payload]. The transaction ensures
+     * that a crash mid-restore never leaves the database in a partial state — either the
+     * old data is intact or the new data is fully in place.
+     *
+     * Attachment rows are re-inserted with id = 0 so Room auto-assigns new primary keys;
+     * the file paths they reference remain valid on the same device.
+     */
+    suspend fun restoreFromBackup(payload: BackupPayload) {
+        db.withTransaction {
+            dao.deleteAll()
+            taskStateDao.deleteAll()
+            attachmentDao.deleteAll()
+            dao.upsertAll(payload.dailyProgress.map          { it.toDailyProgress()    })
+            taskStateDao.upsertAll(payload.dailyTaskStates.map { it.toDailyTaskState()  })
+            attachmentDao.insertAll(payload.dailyAttachments.map { it.toDailyAttachment() })
+        }
     }
 }

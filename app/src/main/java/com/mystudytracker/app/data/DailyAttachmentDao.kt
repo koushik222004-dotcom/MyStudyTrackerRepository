@@ -11,8 +11,17 @@ interface DailyAttachmentDao {
     @Query("SELECT * FROM daily_attachments WHERE date = :date ORDER BY addedAt ASC")
     fun observeByDate(date: String): Flow<List<DailyAttachment>>
 
+    @Query("SELECT * FROM daily_attachments")
+    suspend fun getAll(): List<DailyAttachment>
+
+    @Query("DELETE FROM daily_attachments")
+    suspend fun deleteAll()
+
     @Insert
     suspend fun insert(attachment: DailyAttachment): Long
+
+    @Insert
+    suspend fun insertAll(list: List<DailyAttachment>)
 
     @Query("DELETE FROM daily_attachments WHERE id = :id")
     suspend fun deleteById(id: Long)

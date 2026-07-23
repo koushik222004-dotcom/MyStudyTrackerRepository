@@ -26,6 +26,12 @@ interface DailyTaskStateDao {
     @Upsert
     suspend fun upsert(state: DailyTaskState)
 
+    @Query("SELECT * FROM daily_task_state")
+    suspend fun getAll(): List<DailyTaskState>
+
+    @Query("DELETE FROM daily_task_state")
+    suspend fun deleteAll()
+
     @Upsert
     suspend fun upsertAll(states: List<DailyTaskState>)
 

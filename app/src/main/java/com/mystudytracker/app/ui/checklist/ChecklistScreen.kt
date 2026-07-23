@@ -41,7 +41,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -325,27 +324,25 @@ fun ChecklistScreen(
             )
         }
 
-        Box(modifier = Modifier.fillMaxSize().imePadding()) {
-            AnimatedVisibility(
-                visible = sheetOpen,
-                enter = fadeIn(tween(220)) +
-                    scaleIn(tween(220), initialScale = 0.94f, transformOrigin = TransformOrigin(0.5f, 1f)),
-                exit = fadeOut(tween(160)) +
-                    scaleOut(tween(160), targetScale = 0.96f, transformOrigin = TransformOrigin(0.5f, 1f)),
-                modifier = Modifier.align(Alignment.BottomCenter)
-            ) {
-                RemarkAttachmentsPanel(
-                    date = date,
-                    initialNote = note,
-                    attachments = attachments,
-                    onDismiss = { sheetOpen = false },
-                    onSaveNote = { text -> viewModel.saveNote(text) },
-                    onAddAttachment = { filePath, type, displayName ->
-                        viewModel.addAttachment(filePath, type, displayName)
-                    },
-                    onRemoveAttachment = { id -> viewModel.removeAttachment(id) }
-                )
-            }
+        AnimatedVisibility(
+            visible = sheetOpen,
+            enter = fadeIn(tween(220)) +
+                scaleIn(tween(220), initialScale = 0.94f, transformOrigin = TransformOrigin(0.5f, 1f)),
+            exit = fadeOut(tween(160)) +
+                scaleOut(tween(160), targetScale = 0.96f, transformOrigin = TransformOrigin(0.5f, 1f)),
+            modifier = Modifier.align(Alignment.BottomCenter)
+        ) {
+            RemarkAttachmentsPanel(
+                date = date,
+                initialNote = note,
+                attachments = attachments,
+                onDismiss = { sheetOpen = false },
+                onSaveNote = { text -> viewModel.saveNote(text) },
+                onAddAttachment = { filePath, type, displayName ->
+                    viewModel.addAttachment(filePath, type, displayName)
+                },
+                onRemoveAttachment = { id -> viewModel.removeAttachment(id) }
+            )
         }
 
         // ── Leaf task options panel ─────────────────────────────────────────────────────────
@@ -712,7 +709,6 @@ private fun RemarkAttachmentsPanel(
             }
             Spacer(Modifier.height(20.dp))
         }
-        Spacer(Modifier.height(6.dp))
     }
 }
 
