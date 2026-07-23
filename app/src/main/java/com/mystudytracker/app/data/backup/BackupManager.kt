@@ -3,6 +3,8 @@ package com.mystudytracker.app.data.backup
 import android.content.Context
 import android.net.Uri
 import com.google.gson.Gson
+import com.google.gson.JsonObject
+import com.google.gson.JsonParser
 import java.security.SecureRandom
 import javax.crypto.Cipher
 import javax.crypto.spec.GCMParameterSpec
@@ -90,25 +92,146 @@ object BackupManager {
         }
 
         return try {
-            val payload = gson.fromJson(String(plaintext, Charsets.UTF_8), BackupPayload::class.java)
-            // Gson returns null (or an object with null fields) when field names in the JSON
-            // don't match the class — this happens with backups made by an older obfuscated build
-            // that didn't have @SerializedName annotations. Catch that here with a clear message
-            // rather than letting a NullPointerException surface later in the restore flow.
-            if (payload == null
-                || payload.dailyProgress == null
-                || payload.dailyTaskStates == null
-                || payload.dailyAttachments == null) {
-                RestoreResult.Error(
-                    "This backup is not compatible with the current app version and cannot be restored. " +
-                    "Please create a fresh backup from the current version."
-                )
+            val payload = parsePayload(String(plaintext, Charsets.UTF_8))
+            if (payload == null) {
+                RestoreResult.Error("Backup file could not be read. It may be from an incompatible version.")
             } else {
                 RestoreResult.Success(payload)
             }
         } catch (_: Exception) {
             RestoreResult.Error("Backup file could not be read. It may be from an incompatible version.")
         }
+    }
+
+    // ── Payload parsing (primary + legacy fallback) ───────────────────────────
+
+    /**
+     * Two-stage parse:
+     *
+     * 1. Primary — Gson + @SerializedName: works for every build that has the
+     *    annotations (all builds from this commit onwards).
+     *
+     * 2. Legacy fallback — raw JsonObject walk: the original release build had no
+     *    @SerializedName and no ProGuard keep rules, so R8 renamed each field to a
+     *    single letter in declaration order (a, b, c, d, e per class). We try both
+     *    the real name and the likely obfuscated name for every field so those old
+     *    backups continue to load transparently.
+     */
+    private fun parsePayload(json: String): BackupPayload? {
+        // Stage 1: standard parse with @SerializedName annotations
+        val primary = runCatching { gson.fromJson(json, BackupPayload::class.java) }.getOrNull()
+        if (primary?.dailyProgress != null
+            && primary.dailyTaskStates != null
+            && primary.dailyAttachments != null) {
+            return primary
+        }
+
+        // Stage 2: legacy raw-object parse for backups written by the first
+        // release build, where R8 had renamed every field to a single letter.
+        return runCatching { parseLegacy(json) }.getOrNull()
+    }
+
+    // ── Legacy parser helpers ─────────────────────────────────────────────────
+
+    /** Returns the first non-null String value found under any of [keys]. */
+    private fun JsonObject.str(vararg keys: String): String? {
+        for (k in keys) {
+            val el = get(k) ?: continue
+            if (!el.isJsonNull) return runCatching { el.asString }.getOrNull() ?: continue
+        }
+        return null
+    }
+
+    /** Returns the first non-null Int found under any of [keys], or [default]. */
+    private fun JsonObject.int_(vararg keys: String, default: Int = 0): Int {
+        for (k in keys) {
+            val el = get(k) ?: continue
+            if (!el.isJsonNull) return runCatching { el.asInt }.getOrNull() ?: continue
+        }
+        return default
+    }
+
+    /** Returns the first non-null Long found under any of [keys], or [default]. */
+    private fun JsonObject.long_(vararg keys: String, default: Long = 0L): Long {
+        for (k in keys) {
+            val el = get(k) ?: continue
+            if (!el.isJsonNull) return runCatching { el.asLong }.getOrNull() ?: continue
+        }
+        return default
+    }
+
+    /** Returns the first non-null Boolean found under any of [keys], or [default]. */
+    private fun JsonObject.bool_(vararg keys: String, default: Boolean = false): Boolean {
+        for (k in keys) {
+            val el = get(k) ?: continue
+            if (!el.isJsonNull) return runCatching { el.asBoolean }.getOrNull() ?: continue
+        }
+        return default
+    }
+
+    /**
+     * Parse a BackupPayload written by the original obfuscated release build.
+     *
+     * Field name mapping (real name → likely R8 single-letter name):
+     *
+     *   BackupPayload:         version→a  exportedAt→b  dailyProgress→c  dailyTaskStates→d  dailyAttachments→e
+     *   DailyProgressEntry:    date→a  completedUnits→b  totalUnits→c  locked→d  note→e
+     *   DailyTaskStateEntry:   date→a  taskKey→b  completedCount→c  targetCount→d  notApplicable→e
+     *   DailyAttachmentEntry:  date→a  filePath→b  type→c  displayName→d  addedAt→e
+     */
+    private fun parseLegacy(json: String): BackupPayload? {
+        val root = JsonParser.parseString(json).asJsonObject
+
+        // Top-level arrays — try real name first, then likely obfuscated name
+        val progressArr  = root.getAsJsonArray("dailyProgress")    ?: root.getAsJsonArray("c") ?: return null
+        val taskArr      = root.getAsJsonArray("dailyTaskStates")   ?: root.getAsJsonArray("d") ?: return null
+        val attachArr    = root.getAsJsonArray("dailyAttachments")  ?: root.getAsJsonArray("e") ?: return null
+
+        val version     = root.int_("version",    "a", default = 1)
+        val exportedAt  = root.long_("exportedAt", "b", default = 0L)
+
+        val progress = progressArr.mapNotNull { el ->
+            runCatching {
+                val o = el.asJsonObject
+                val date = o.str("date", "a") ?: return@mapNotNull null
+                DailyProgressEntry(
+                    date           = date,
+                    completedUnits = o.int_("completedUnits", "b"),
+                    totalUnits     = o.int_("totalUnits",     "c"),
+                    locked         = o.bool_("locked",        "d"),
+                    note           = o.str("note",            "e")   // nullable — str() already handles JsonNull
+                )
+            }.getOrNull()
+        }
+
+        val tasks = taskArr.mapNotNull { el ->
+            runCatching {
+                val o = el.asJsonObject
+                val date    = o.str("date",    "a") ?: return@mapNotNull null
+                val taskKey = o.str("taskKey", "b") ?: return@mapNotNull null
+                DailyTaskStateEntry(
+                    date           = date,
+                    taskKey        = taskKey,
+                    completedCount = o.int_("completedCount", "c"),
+                    targetCount    = o.int_("targetCount",    "d", default = 1),
+                    notApplicable  = o.bool_("notApplicable", "e")
+                )
+            }.getOrNull()
+        }
+
+        val attachments = attachArr.mapNotNull { el ->
+            runCatching {
+                val o = el.asJsonObject
+                val date        = o.str("date",        "a") ?: return@mapNotNull null
+                val filePath    = o.str("filePath",    "b") ?: return@mapNotNull null
+                val type        = o.str("type",        "c") ?: return@mapNotNull null
+                val displayName = o.str("displayName", "d") ?: ""
+                val addedAt     = o.long_("addedAt",   "e")
+                DailyAttachmentEntry(date, filePath, type, displayName, addedAt)
+            }.getOrNull()
+        }
+
+        return BackupPayload(version, exportedAt, progress, tasks, attachments)
     }
 
     // ── Public API ────────────────────────────────────────────────────────────
