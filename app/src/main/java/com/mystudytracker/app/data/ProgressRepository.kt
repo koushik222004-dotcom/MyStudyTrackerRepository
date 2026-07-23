@@ -201,9 +201,27 @@ class ProgressRepository(
             dao.deleteAll()
             taskStateDao.deleteAll()
             attachmentDao.deleteAll()
-            dao.upsertAll(payload.dailyProgress.map          { it.toDailyProgress()    })
-            taskStateDao.upsertAll(payload.dailyTaskStates.map { it.toDailyTaskState()  })
-            attachmentDao.insertAll(payload.dailyAttachments.map { it.toDailyAttachment() })
+
+            // mapNotNull + null-guard on required fields defends against any entry whose
+            // required fields are null (e.g. a backup written by an older obfuscated build
+            // that somehow still passed the top-level payload null-check). We skip corrupt
+            // rows rather than letting a NullPointerException abort the whole restore.
+            dao.upsertAll(
+                payload.dailyProgress.mapNotNull { entry ->
+                    if (entry?.date == null) null else entry.toDailyProgress()
+                }
+            )
+            taskStateDao.upsertAll(
+                payload.dailyTaskStates.mapNotNull { entry ->
+                    if (entry?.date == null || entry.taskKey == null) null else entry.toDailyTaskState()
+                }
+            )
+            attachmentDao.insertAll(
+                payload.dailyAttachments.mapNotNull { entry ->
+                    if (entry?.date == null || entry.filePath == null || entry.type == null) null
+                    else runCatching { entry.toDailyAttachment() }.getOrNull()
+                }
+            )
         }
     }
 }

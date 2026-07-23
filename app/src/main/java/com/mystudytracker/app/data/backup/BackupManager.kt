@@ -91,7 +91,21 @@ object BackupManager {
 
         return try {
             val payload = gson.fromJson(String(plaintext, Charsets.UTF_8), BackupPayload::class.java)
-            RestoreResult.Success(payload)
+            // Gson returns null (or an object with null fields) when field names in the JSON
+            // don't match the class — this happens with backups made by an older obfuscated build
+            // that didn't have @SerializedName annotations. Catch that here with a clear message
+            // rather than letting a NullPointerException surface later in the restore flow.
+            if (payload == null
+                || payload.dailyProgress == null
+                || payload.dailyTaskStates == null
+                || payload.dailyAttachments == null) {
+                RestoreResult.Error(
+                    "This backup is not compatible with the current app version and cannot be restored. " +
+                    "Please create a fresh backup from the current version."
+                )
+            } else {
+                RestoreResult.Success(payload)
+            }
         } catch (_: Exception) {
             RestoreResult.Error("Backup file could not be read. It may be from an incompatible version.")
         }
