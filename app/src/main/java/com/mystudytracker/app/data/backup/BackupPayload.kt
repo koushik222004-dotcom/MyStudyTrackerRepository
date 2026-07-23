@@ -45,7 +45,15 @@ data class DailyAttachmentEntry(
     @SerializedName("filePath")    val filePath: String,
     @SerializedName("type")        val type: String,        // stored as enum name; @SerializedName keeps it stable
     @SerializedName("displayName") val displayName: String,
-    @SerializedName("addedAt")     val addedAt: Long
+    @SerializedName("addedAt")     val addedAt: Long,
+    /**
+     * Base64-encoded raw file bytes, embedded at backup time so the file survives restore
+     * across devices or after the original file has been deleted. Null for legacy backups
+     * that pre-date this field — those fall back to the stored [filePath] at open time.
+     * Cleared (set to null) after the bytes have been written to internal storage on restore,
+     * so it is never persisted to the database.
+     */
+    @SerializedName("fileContent") val fileContent: String? = null
 )
 
 // ── Conversion helpers ────────────────────────────────────────────────────────────────────────

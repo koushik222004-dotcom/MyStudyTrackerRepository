@@ -2,10 +2,14 @@ package com.mystudytracker.app.data.backup
 
 import android.content.Context
 import android.net.Uri
+import android.util.Base64
 import com.google.gson.Gson
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
+import com.mystudytracker.app.data.AttachmentType
+import java.io.File
 import java.security.SecureRandom
+import java.util.UUID
 import javax.crypto.Cipher
 import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.SecretKeySpec
@@ -238,7 +242,23 @@ object BackupManager {
 
     fun writeToUri(context: Context, uri: Uri, payload: BackupPayload): BackupResult {
         return try {
-            val bytes = encrypt(payload)
+            // Embed each attachment's raw bytes as base64 so the file can be fully
+            // reconstructed on restore, even on a different device or after the original
+            // file has been deleted. Attachments whose backing file is already missing are
+            // included without content (fileContent = null) so the record is at least
+            // preserved in the database with its display name and date.
+            val enriched = payload.copy(
+                dailyAttachments = payload.dailyAttachments.map { entry ->
+                    val file = File(entry.filePath)
+                    val content = if (file.exists()) {
+                        runCatching {
+                            Base64.encodeToString(file.readBytes(), Base64.NO_WRAP)
+                        }.getOrNull()
+                    } else null
+                    if (content != null) entry.copy(fileContent = content) else entry
+                }
+            )
+            val bytes = encrypt(enriched)
             context.contentResolver.openOutputStream(uri)?.use { it.write(bytes) }
                 ?: return BackupResult.Error("Could not open the selected file for writing.")
             BackupResult.Success
@@ -251,9 +271,46 @@ object BackupManager {
         return try {
             val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
                 ?: return RestoreResult.Error("Could not open the selected file.")
-            decrypt(bytes)
+            val result = decrypt(bytes)
+            // After decryption/parsing, write any embedded file bytes to internal storage
+            // and rewrite each entry's filePath to the new local path so the DB record
+            // points to a real, openable file on this device.
+            if (result is RestoreResult.Success) {
+                RestoreResult.Success(extractAttachmentFiles(context, result.payload))
+            } else {
+                result
+            }
         } catch (e: Exception) {
             RestoreResult.Error("Could not read file: ${e.message}")
         }
+    }
+
+    /**
+     * For each [DailyAttachmentEntry] that carries embedded [fileContent], writes the raw
+     * bytes to app-internal storage under `attachments/<date>/<type>/` (matching the path
+     * structure used by [copyToInternalStorage] in ChecklistScreen) and returns a copy of
+     * the payload with each entry's [filePath] updated to the new absolute path and
+     * [fileContent] cleared so the bytes aren't written to the database.
+     *
+     * Entries with no [fileContent] (legacy backups) are passed through unchanged; they will
+     * fail gracefully at open time with a user-visible message if the file is truly gone.
+     */
+    private fun extractAttachmentFiles(context: Context, payload: BackupPayload): BackupPayload {
+        val restored = payload.dailyAttachments.map { entry ->
+            val content = entry.fileContent ?: return@map entry
+            val type = runCatching { AttachmentType.valueOf(entry.type) }.getOrNull()
+                ?: return@map entry
+            val ext = entry.displayName.substringAfterLast('.', "").takeIf { it.isNotEmpty() }
+            val fileName = "${UUID.randomUUID()}${if (ext != null) ".$ext" else ""}"
+            val dir = File(context.filesDir, "attachments/${entry.date}/${type.name.lowercase()}")
+            dir.mkdirs()
+            val dest = File(dir, fileName)
+            runCatching {
+                dest.writeBytes(Base64.decode(content, Base64.NO_WRAP))
+                // Clear fileContent once written — it must not reach the database
+                entry.copy(filePath = dest.absolutePath, fileContent = null)
+            }.getOrElse { entry } // if write fails, keep original entry; open will show a clear error
+        }
+        return payload.copy(dailyAttachments = restored)
     }
 }

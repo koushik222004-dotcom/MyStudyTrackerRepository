@@ -838,12 +838,23 @@ private suspend fun copyToInternalStorage(
 
 /**
  * Opens an internal-storage file in an external viewer via FileProvider.
- * Silently no-ops if the file is gone or no installed app handles the MIME type.
+ *
+ * Shows a user-visible Toast in three failure cases:
+ *  - File missing on disk (deleted or restored from a legacy backup without embedded bytes)
+ *  - No installed app can handle this MIME type
+ *  - Any other unexpected failure (FileProvider misconfiguration, security exception, etc.)
  */
 private fun openAttachment(context: Context, attachment: DailyAttachment) {
+    val file = File(attachment.filePath)
+    if (!file.exists()) {
+        android.widget.Toast.makeText(
+            context,
+            "File not found — it may have been deleted or wasn't included in the backup.",
+            android.widget.Toast.LENGTH_LONG
+        ).show()
+        return
+    }
     try {
-        val file = File(attachment.filePath)
-        if (!file.exists()) return
         val uri: Uri = FileProvider.getUriForFile(
             context,
             "${context.packageName}.fileprovider",
@@ -864,8 +875,18 @@ private fun openAttachment(context: Context, attachment: DailyAttachment) {
                 "Open with"
             )
         )
+    } catch (_: android.content.ActivityNotFoundException) {
+        android.widget.Toast.makeText(
+            context,
+            "No app installed can open this file type.",
+            android.widget.Toast.LENGTH_SHORT
+        ).show()
     } catch (_: Exception) {
-        // No installed app can handle this file type.
+        android.widget.Toast.makeText(
+            context,
+            "Could not open attachment.",
+            android.widget.Toast.LENGTH_SHORT
+        ).show()
     }
 }
 
